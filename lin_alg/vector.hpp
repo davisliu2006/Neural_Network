@@ -1,0 +1,111 @@
+#pragma once
+
+#include <cassert>
+#include <cmath>
+#include <iostream>
+#include <vector>
+
+namespace lin_alg {
+    template <class type = double>
+    struct vvect_t {
+        private:
+        std::vector<type> arr;
+
+        public:
+        vvect_t(int n): arr(n) {}
+        vvect_t(const std::vector<type>& arr): arr(arr) {}
+        vvect_t(int n, type val): arr(n, val) {}
+
+        int size() const {return arr.size();}
+        type& operator [](int i) {return arr[i];}
+        type operator [](int i) const {return arr[i];}
+
+        type mag2() const {
+            type val = 0;
+            for (int i = 0; i < size(); i++) {val += arr[i]*arr[i];}
+            return val;
+        }
+        type mag() const {
+            return sqrt(mag2());
+        }
+    };
+
+    // vector print
+    template <class type>
+    inline std::ostream& operator <<(std::ostream& out, const vvect_t<type>& v) {
+        assert(v.size() > 0);
+        out << '[';
+        for (int i = 0; i < v.size()-1; i++) {out << v[i] << ", ";}
+        out << v[v.size()-1] << ']';
+        return out;
+    }
+
+    // vector negative
+    template <class type>
+    inline vvect_t<type> operator -(const vvect_t<type>& v) {
+        vvect_t<type> val(v.size());
+        for (int i = 0; i < v.size(); i++) {val[i] = -v[i];}
+        return val;
+    }
+
+    // vector addition
+    template <class type>
+    inline vvect_t<type> operator +(const vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assert(v1.size() == v2.size());
+        vvect_t<type> val(v1.size());
+        for (int i = 0; i < v1.size(); i++) {val[i] = v1[i]+v2[i];}
+        return val;
+    }
+    template <class type>
+    inline vvect_t<type>& operator +=(vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assert(v1.size() == v2.size());
+        for (int i = 0; i < v1.size(); i++) {v1[i] += v2[i];}
+        return v1;
+    }
+    template <class type>
+    inline vvect_t<type> operator -(const vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assert(v1.size() == v2.size());
+        vvect_t<type> val(v1.size());
+        for (int i = 0; i < v1.size(); i++) {val[i] = v1[i]-v2[i];}
+        return val;
+    }
+    template <class type>
+    inline vvect_t<type>& operator -=(vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assert(v1.size() == v2.size());
+        for (int i = 0; i < v1.size(); i++) {v1[i] -= v2[i];}
+        return v1;
+    }
+
+    // vector scalar multiplication
+    template <class type>
+    inline vvect_t<type> operator *(const vvect_t<type>& v, type scale) {
+        vvect_t<type> val(v.size());
+        for (int i = 0; i < v.size(); i++) {val[i] = v[i]*scale;}
+        return val;
+    }
+    template <class type>
+    inline vvect_t<type>& operator *=(vvect_t<type>& v, type scale) {
+        for (int i = 0; i < v.size(); i++) {v[i] *= scale;}
+        return v;
+    }
+    template <class type>
+    inline vvect_t<type> operator /(const vvect_t<type>& v, type scale) {
+        vvect_t<type> val(v.size());
+        for (int i = 0; i < v.size(); i++) {val[i] = v[i]/scale;}
+        return val;
+    }
+    template <class type>
+    inline vvect_t<type>& operator /=(vvect_t<type>& v, type scale) {
+        for (int i = 0; i < v.size(); i++) {v[i] /= scale;}
+        return v;
+    }
+
+    // dot product
+    template <class type>
+    inline type dot_prod(const vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assert(v1.size() == v2.size());
+        type val = 0;
+        for (int i = 0; i < v1.size(); i++) {val += v1[i]*v2[i];}
+        return val;
+    }
+}
