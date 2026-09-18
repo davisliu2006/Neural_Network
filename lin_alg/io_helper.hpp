@@ -9,7 +9,7 @@ namespace lin_alg {
     template <class type>
     struct IOHelper {
         static constexpr int TSIZE = sizeof(type);
-        
+
         static std::string v_to_raw(const vvect_t<type>& v) {
             int data_size = TSIZE*v.size();
             std::string val(data_size, 0);
