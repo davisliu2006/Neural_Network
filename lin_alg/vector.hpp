@@ -127,4 +127,14 @@ namespace lin_alg {
         for (int i = 0; i < v1.size(); i++) {val += v1[i]*v2[i];}
         return val;
     }
+
+    // element-wise multiplication
+    template <class type>
+    inline vvect_t<type> elem_prod(const vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assert(v1.size() == v2.size());
+        vvect_t<type> val(v1.size());
+        #pragma omp simd
+        for (int i = 0; i < v1.size(); i++) {val[i] = v1[i]*v2[i];}
+        return val;
+    }
 }

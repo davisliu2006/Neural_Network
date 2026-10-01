@@ -30,6 +30,14 @@ namespace lin_alg {
         type& raw_at(int i) {return arr[i];}
         type raw_at(int i) const {return arr[i];}
 
+        vmatrix_t<type> transpose() const {
+            vmatrix_t<type> val(nc(), nr());
+            for (int i = 0; i < nr(); i++) {
+                for (int j = 0; j < nc(); j++) {val.at(j, i) = at(i, j);}
+            }
+            return val;
+        }
+
         static vmatrix_t<type> ID(int n) {
             vmatrix_t<type> val(n, n);
             for (int i = 0; i < n; i++) {val.at(i, i) = 1;}
@@ -163,5 +171,35 @@ namespace lin_alg {
     template <class type>
     inline vmatrix_t<type>& operator *=(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
         return m1 = m1*m2;
+    }
+
+    // element-wise multiplication
+    template <class type>
+    inline vmatrix_t<type> elem_prod(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+        assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
+        vmatrix_t<type> val(m1.nr(), m1.nc());
+        #pragma omp simd
+        for (int i = 0; i < m1.raw_size(); i++) {val.raw_at(i) = m1.raw_at(i)*m2.raw_at(i);}
+        return val;
+    }
+
+    // vector copy row
+    template <class type>
+    inline vmatrix_t<type> copy_row(const vvect_t<type>& v, int nr) {
+        vmatrix_t<type> val(nr, v.size());
+        for (int i = 0; i < nr; i++) {
+            for (int j = 0; j < v.size(); j++) {val.at(i, j) = v[j];}
+        }
+        return val;
+    }
+    
+    // vector copy column
+    template <class type>
+    inline vmatrix_t<type> copy_col(const vvect_t<type>& v, int nc) {
+        vmatrix_t<type> val(v.size(), nc);
+        for (int i = 0; i < v.size(); i++) {
+            for (int j = 0; j < nc; j++) {val.at(i, j) = v[i];}
+        }
+        return val;
     }
 }
