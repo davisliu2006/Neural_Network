@@ -17,6 +17,13 @@ namespace neural {
     struct TrainableNetwork: StoredNetwork<type> {
         static_assert(std::is_floating_point_v<type>);
         using f_type = typename Network<type>::f_type;
+        using StoredNetwork<type>::weights, StoredNetwork<type>::biases;
+        using StoredNetwork<type>::get_weight, StoredNetwork<type>::get_bias,
+            StoredNetwork<type>::set_weight, StoredNetwork<type>::set_bias;
+        using StoredNetwork<type>::activation, StoredNetwork<type>::apply_activation;
+        using StoredNetwork<type>::in_size, StoredNetwork<type>::out_size,
+            StoredNetwork<type>::n_layer, StoredNetwork<type>::layer_size;
+        using StoredNetwork<type>::compute;
 
         protected:
         f_type _activation_d;
@@ -66,13 +73,19 @@ namespace neural {
             type learning_rate,
             int epochs
         ) {
+            std::cout << "Training on " << examples.size() << " examples..." << std::endl;
             assert(!examples.empty());
             assert(learning_rate > 0);
             assert(epochs > 0);
             vector<type> losses;
             losses.reserve(epochs);
-            while (epochs-- > 0) {
+            for (int epoch = 1; epoch <= epochs; epoch++) {
+                std::cout << "Computing epoch " << epoch << "..." << std::endl;
+                double t0 = time();
                 this->params -= compute_gradient(examples)*learning_rate;
+                double t1 = time();
+                std::cout << "Epoch: " << epoch << " Loss: " << loss(examples)
+                    << " in " << t1-t0 << "s" << std::endl;
                 losses.push_back(loss(examples));
             }
             return losses;

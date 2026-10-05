@@ -1,8 +1,11 @@
 #pragma once
 
+#include <chrono>
 #include <type_traits>
 
 namespace neural {
+    // TYPES
+
     template <class ret_t, class... arg_t>
     using function = ret_t (*)(arg_t...);
 
@@ -11,6 +14,16 @@ namespace neural {
         std::is_floating_point_v<type>, int
     >;
 
+    // MATH
+
     template <class type>
     inline type sq(type x) {return x*x;}
+
+    // TIME
+
+    inline double time() {
+        using namespace std::chrono;
+        auto t = steady_clock::now();
+        return duration_cast<microseconds>(t.time_since_epoch()).count()*1e-6;
+    }
 }

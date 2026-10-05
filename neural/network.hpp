@@ -19,7 +19,8 @@ namespace neural {
 
         protected:
         int _in_size, _out_size, _n_layer, _layer_size;
-        f_type _activation;
+        activation_t _act, _last_act;
+        f_type _activation, _last_activation;
 
         Parameters<type> params;
 
@@ -42,17 +43,12 @@ namespace neural {
 
         type activation(type x) const {return _activation(x);}
         vvect_t<type> activation(const vvect_t<type>& x) const {
-            vvect_t<type> val(x.size());
-            for (int i = 0; i < x.size(); i++) {val[i] = activation(x[i]);}
-            return val;
+            vvect_t<type> val = x;
+            return apply_activation(val);
         }
-        vmatrix_t<type> activation(const vmatrix_t<type>& m) const {
-            vmatrix_t<type> val(m.nr(), m.nc());
-            for (int i = 0; i < m.raw_size(); i++) {val.raw_at(i) = activation(m.raw_at(i));}
-            return val;
-        }
-        void apply_activation(vvect_t<type>& x) const {
+        vvect_t<type>& apply_activation(vvect_t<type>& x) const {
             for (int i = 0; i < x.size(); i++) {x[i] = activation(x[i]);}
+            return x;
         }
 
         Network(
@@ -60,6 +56,7 @@ namespace neural {
             activation_t act = activation_t::SIGMOID
         ):
         _in_size(in_size), _out_size(out_size), _n_layer(n_layer), _layer_size(layer_size),
+        _act(act),
         _activation(get_activation<type>(act)),
         params(in_size, out_size, n_layer, layer_size) {
             assert(n_layer >= 3);
@@ -69,6 +66,7 @@ namespace neural {
         int out_size() const {return _out_size;}
         int n_layer() const {return _n_layer;}
         int layer_size() const {return _layer_size;}
+        activation_t act() const {return _act;}
 
         virtual vvect_t<type> compute(const vvect_t<type>& in) {
             assert(in.size() == in_size());
@@ -83,6 +81,13 @@ namespace neural {
 
     template <class type>
     struct StoredNetwork: Network<type> {
+        using Network<type>::weights, Network<type>::biases;
+        using Network<type>::get_weight, Network<type>::get_bias,
+            Network<type>::set_weight, Network<type>::set_bias;
+        using Network<type>::activation, Network<type>::apply_activation;
+        using Network<type>::in_size, Network<type>::out_size,
+            Network<type>::n_layer, Network<type>::layer_size;
+
         protected:
         vector<vvect_t<type>> pre_activations;
         vector<vvect_t<type>> activations;
