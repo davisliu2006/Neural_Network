@@ -43,7 +43,7 @@ namespace neural {
          */
         inline vector<uint8_t> load_labels(const string& path) {
             ifstream in(path, ios::binary);
-            assert(in);
+            assert(in && "Labels file not found");
             assert(read_u32(in) == 2049); // assert is label file
             int n = int(read_u32(in));
 
@@ -63,7 +63,7 @@ namespace neural {
             type scale = type(1)/type(255)
         ) {
             ifstream in(path, ios::binary);
-            assert(in);
+            assert(in && "Images file not found");
             assert(read_u32(in) == 2051); // assert is image file
             int n = int(read_u32(in));
             int rows = int(read_u32(in));

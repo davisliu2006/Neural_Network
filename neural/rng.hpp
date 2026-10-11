@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cmath>
 #include <random>
 
 #include "../lin_alg/matrix.hpp"
 #include "../lin_alg/vector.hpp"
 #include "base.hpp"
+#include "functions.hpp"
 
 namespace neural {
     using namespace lin_alg;
@@ -23,8 +25,21 @@ namespace neural {
     inline RNG rng;
 
     template <class type, enable_if_float_t<type> = 0>
-    void init_random(vmatrix_t<type>& m) {
-        std::uniform_real_distribution<type> dist(-0.5, 0.5);
+    void init_random(vmatrix_t<type>& m, activation_t act) {
+        type fan_in = type(m.nr());
+        type fan_out = type(m.nc());
+        type limit;
+        switch (act) {
+            case activation_t::RELU: {
+                limit = std::sqrt(type(6)/fan_in);
+                break;
+            }
+            case activation_t::SIGMOID: {
+                limit = std::sqrt(type(6)/(fan_in + fan_out));
+                break;
+            }
+        }
+        std::uniform_real_distribution<type> dist(-limit, limit);
         for (int i = 0; i < m.raw_size(); i++) {
             m.raw_at(i) = dist(rng._gen32);
         }

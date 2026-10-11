@@ -8,6 +8,9 @@
 namespace lin_alg {
     template <class type = double>
     struct vvect_t {
+        using iterator = typename std::vector<type>::iterator;
+        using const_iterator = typename std::vector<type>::const_iterator;
+
         private:
         std::vector<type> arr;
 
@@ -29,6 +32,11 @@ namespace lin_alg {
         double mag() const {
             return std::sqrt(mag2());
         }
+
+        iterator begin() {return arr.begin();}
+        iterator end() {return arr.end();}
+        const_iterator begin() const {return arr.begin();}
+        const_iterator end() const {return arr.end();}
     };
 
     // vector print

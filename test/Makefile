@@ -11,7 +11,7 @@
 ifeq ($(origin CXX),default)
     CXX := clang++
 endif
-CXXFLAGS ?= -std=c++17 -O2 -Wall
+CXXFLAGS ?= -std=c++17 -O2 -march=native -Wall
 
 ROOT := ..
 BIN  := bin

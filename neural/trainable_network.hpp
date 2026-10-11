@@ -1,16 +1,16 @@
 #pragma once
 
+#include <cmath>
+#include <limits>
+
 #include "network.hpp"
 #include "rng.hpp"
+#include "training_example.hpp"
 
 namespace neural {
     template <class type>
-    struct TrainingExample {
-        vvect_t<type> input;
-        vvect_t<type> output;
-
-        TrainingExample(const vvect_t<type>& input, const vvect_t<type>& output):
-        input(input), output(output) {}
+    struct estimate_t {
+        type value, lower, upper;
     };
 
     template <class type>
@@ -26,35 +26,38 @@ namespace neural {
         using StoredNetwork<type>::compute;
 
         protected:
-        f_type _activation_d;
+        f_type _activation_d, _last_activation_d;
 
         public:
-        type activation_d(type x) const {return _activation_d(x);}
-        vvect_t<type> activation_d(const vvect_t<type>& x) const {
-            vvect_t<type> val(x.size());
-            for (int i = 0; i < x.size(); i++) {val[i] = activation_d(x[i]);}
-            return val;
+        vvect_t<type> activation_d(const vvect_t<type>& x, bool last = false) const {
+            vvect_t<type> val = x;
+            return apply_activation_d(val, last);
         }
-        vmatrix_t<type> activation_d(const vmatrix_t<type>& m) const {
-            vmatrix_t<type> val(m.nr(), m.nc());
-            for (int i = 0; i < m.raw_size(); i++) {val.raw_at(i) = activation_d(m.raw_at(i));}
-            return val;
-        }
-        void apply_activation_d(vvect_t<type>& x) const {
-            for (int i = 0; i < x.size(); i++) {x[i] = activation_d(x[i]);}
+        vvect_t<type>& apply_activation_d(vvect_t<type>& x, bool last = false) const {
+            auto f = (last? _last_activation_d : _activation_d);
+            for (int i = 0; i < x.size(); i++) {x[i] = f(x[i]);}
+            return x;
         }
 
         TrainableNetwork(
             int in_size, int out_size, int n_layer, int layer_size,
             activation_t act = activation_t::SIGMOID
         ):
-        StoredNetwork<type>(in_size, out_size, n_layer, layer_size, act),
-        _activation_d(get_activation_d<type>(act)) {}
+        TrainableNetwork(in_size, out_size, n_layer, layer_size, act, act) {}
+        TrainableNetwork(
+            int in_size, int out_size, int n_layer, int layer_size,
+            activation_t act, activation_t last_act
+        ):
+        StoredNetwork<type>(in_size, out_size, n_layer, layer_size, act, last_act),
+        _activation_d(get_activation_d<type>(act)),
+        _last_activation_d(get_activation_d<type>(last_act)) {}
 
         void init_random() {
             for (int i = 0; i < n_layer(); i++) {
                 vmatrix_t<type> w = get_weight(i);
-                neural::init_random(w);
+                neural::init_random(
+                    w, i == n_layer()-1? this->last_act() : this->act()
+                );
                 set_weight(i, w);
             }
         }
@@ -77,6 +80,7 @@ namespace neural {
             assert(!examples.empty());
             assert(learning_rate > 0);
             assert(epochs > 0);
+            this->normalizer.init_from_examples(examples);
             vector<type> losses;
             losses.reserve(epochs);
             for (int epoch = 1; epoch <= epochs; epoch++) {
@@ -89,6 +93,50 @@ namespace neural {
                 losses.push_back(loss(examples));
             }
             return losses;
+        }
+
+        /**
+         * Geometrically probe a suggested learning rate.
+         */
+        estimate_t<type> probe_learning_rate(
+            const vector<TrainingExample<type>>& examples,
+            type lr_min, type lr_max,
+            int n_trials, int probe_epochs
+        ) {
+            assert(!examples.empty());
+            assert(0 < lr_min && lr_min < lr_max);
+            assert(n_trials >= 2 && probe_epochs > 0);
+            this->normalizer.init_from_examples(examples);
+            Parameters<type> saved_params = this->params;
+
+            vector<type> lrs(n_trials);
+            type log_min = std::log(lr_min);
+            type log_max = std::log(lr_max);
+            type step = (log_max-log_min)/type(n_trials-1);
+            for (int i = 0; i < n_trials; i++) {
+                lrs[i] = std::exp(log_min + step*i);
+            }
+
+            int best_trial = 0;
+            type best_loss = std::numeric_limits<type>::infinity();
+            for (int trial = 0; trial < n_trials; trial++) {
+                type lr = lrs[trial];
+                std::cout << "Trying lr = " << lr << "... " << std::flush;
+                this->params = saved_params;
+                for (int epoch = 0; epoch < probe_epochs; epoch++) {
+                    this->params -= compute_gradient(examples)*lr;
+                }
+                type curr_loss = loss(examples);
+                std::cout << "Loss = " << curr_loss << std::endl;
+                if (curr_loss < best_loss) {
+                    best_trial = trial;
+                    best_loss = curr_loss;
+                }
+            }
+            this->params = saved_params;
+            int lower = best_trial == 0? 0 : best_trial-1;
+            int upper = best_trial == n_trials-1? best_trial : best_trial+1;
+            return {lrs[best_trial], lrs[lower], lrs[upper]};
         }
 
         protected:
@@ -113,8 +161,10 @@ namespace neural {
             vvect_t<type> dE_dan = (this->activations.back() - y)*type(2);
             vmatrix_t<type> dan_dai = vmatrix_t<type>::ID(out_size());
             for (int i = n_layer()-1; i >= 0; i--) {
-                const auto& a_prev = (i == 0? x : this->activations[i-1]);
-                vvect_t<type> dai_dbi = activation_d(this->pre_activations[i]);
+                const auto& a_prev = (i == 0? this->normalized_in : this->activations[i-1]);
+                vvect_t<type> dai_dbi = activation_d(
+                    this->pre_activations[i], i == n_layer()-1
+                );
                 vmatrix_t<type> dai_dWi = elem_prod(
                     copy_row(dai_dbi, weights()[i].nr()),
                     copy_col(a_prev, weights()[i].nc())
