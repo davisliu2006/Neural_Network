@@ -70,22 +70,19 @@ namespace lin_alg {
 
     // matrix negative
     template <class type>
-    inline vmatrix_t<type> operator -(const vmatrix_t<type>& m) {
-        vmatrix_t<type> val(m.nr(), m.nc());
+    inline vmatrix_t<type>& apply_neg(vmatrix_t<type>& m) {
         #pragma omp simd
-        for (int i = 0; i < m.raw_size(); i++) {val.raw_at(i) = -m.raw_at(i);}
+        for (int i = 0; i < m.raw_size(); i++) {m.raw_at(i) = -m.raw_at(i);}
+        return m;
+    }
+    template <class type>
+    inline vmatrix_t<type> operator -(const vmatrix_t<type>& m) {
+        vmatrix_t<type> val = m;
+        apply_neg(val);
         return val;
     }
 
     // matrix addition
-    template <class type>
-    inline vmatrix_t<type> operator +(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
-        assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
-        vmatrix_t<type> val(m1.nr(), m1.nc());
-        #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {val.raw_at(i) = m1.raw_at(i)+m2.raw_at(i);}
-        return val;
-    }
     template <class type>
     inline vmatrix_t<type>& operator +=(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
         assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
@@ -94,11 +91,9 @@ namespace lin_alg {
         return m1;
     }
     template <class type>
-    inline vmatrix_t<type> operator -(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
-        assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
-        vmatrix_t<type> val(m1.nr(), m1.nc());
-        #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {val.raw_at(i) = m1.raw_at(i)-m2.raw_at(i);}
+    inline vmatrix_t<type> operator +(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+        vmatrix_t<type> val = m1;
+        val += m2;
         return val;
     }
     template <class type>
@@ -108,15 +103,14 @@ namespace lin_alg {
         for (int i = 0; i < m1.raw_size(); i++) {m1.raw_at(i) -= m2.raw_at(i);}
         return m1;
     }
-
-    // matrix scalar multiplication
     template <class type>
-    inline vmatrix_t<type> operator *(const vmatrix_t<type>& m, type scale) {
-        vmatrix_t<type> val(m.nr(), m.nc());
-        #pragma omp simd
-        for (int i = 0; i < m.raw_size(); i++) {val.raw_at(i) = m.raw_at(i)*scale;}
+    inline vmatrix_t<type> operator -(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+        vmatrix_t<type> val = m1;
+        val -= m2;
         return val;
     }
+
+    // matrix scalar multiplication
     template <class type>
     inline vmatrix_t<type>& operator *=(vmatrix_t<type>& m, type scale) {
         #pragma omp simd
@@ -124,10 +118,9 @@ namespace lin_alg {
         return m;
     }
     template <class type>
-    inline vmatrix_t<type> operator /(const vmatrix_t<type>& m, type scale) {
-        vmatrix_t<type> val(m.nr(), m.nc());
-        #pragma omp simd
-        for (int i = 0; i < m.raw_size(); i++) {val.raw_at(i) = m.raw_at(i)/scale;}
+    inline vmatrix_t<type> operator *(const vmatrix_t<type>& m, type scale) {
+        vmatrix_t<type> val = m;
+        val *= scale;
         return val;
     }
     template <class type>
@@ -135,6 +128,12 @@ namespace lin_alg {
         #pragma omp simd
         for (int i = 0; i < m.raw_size(); i++) {m.raw_at(i) /= scale;}
         return m;
+    }
+    template <class type>
+    inline vmatrix_t<type> operator /(const vmatrix_t<type>& m, type scale) {
+        vmatrix_t<type> val = m;
+        val /= scale;
+        return val;
     }
 
     // vector matrix multiplication
@@ -175,11 +174,16 @@ namespace lin_alg {
 
     // element-wise multiplication
     template <class type>
-    inline vmatrix_t<type> elem_prod(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+    inline vmatrix_t<type>& apply_elem_prod(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
         assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
-        vmatrix_t<type> val(m1.nr(), m1.nc());
         #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {val.raw_at(i) = m1.raw_at(i)*m2.raw_at(i);}
+        for (int i = 0; i < m1.raw_size(); i++) {m1.raw_at(i) *= m2.raw_at(i);}
+        return m1;
+    }
+    template <class type>
+    inline vmatrix_t<type> elem_prod(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+        vmatrix_t<type> val = m1;
+        apply_elem_prod(val, m2);
         return val;
     }
 

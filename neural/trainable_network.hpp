@@ -31,7 +31,8 @@ namespace neural {
         public:
         vvect_t<type> activation_d(const vvect_t<type>& x, bool last = false) const {
             vvect_t<type> val = x;
-            return apply_activation_d(val, last);
+            apply_activation_d(val, last);
+            return val;
         }
         vvect_t<type>& apply_activation_d(vvect_t<type>& x, bool last = false) const {
             auto f = (last? _last_activation_d : _activation_d);
@@ -162,22 +163,44 @@ namespace neural {
             vmatrix_t<type> dan_dai = vmatrix_t<type>::ID(out_size());
             for (int i = n_layer()-1; i >= 0; i--) {
                 const auto& a_prev = (i == 0? this->normalized_in : this->activations[i-1]);
+                // vvect_t<type> dE_dai = dE_dan*dan_dai;
+                // grad.bias[i] = dE_dai;
+                grad.biases[i] = dE_dan*dan_dai;
+                // grad.weight[i] = copy_row(dE_dai, weights()[i].nr());
+                for (int j = 0; j < weights()[i].nr(); j++) {
+                    for (int k = 0; k < weights()[i].nc(); k++) {
+                        grad.weights[i].at(j, k) = grad.biases[i][k];
+                    }
+                }
                 vvect_t<type> dai_dbi = activation_d(
                     this->pre_activations[i], i == n_layer()-1
                 );
-                vmatrix_t<type> dai_dWi = elem_prod(
-                    copy_row(dai_dbi, weights()[i].nr()),
-                    copy_col(a_prev, weights()[i].nc())
-                );
-                grad.set_bias(i, elem_prod(dE_dan*dan_dai, dai_dbi));
-                grad.set_weight(i, elem_prod(
-                    copy_row(dE_dan*dan_dai, weights()[i].nr()),
-                    dai_dWi
-                ));
-                dan_dai *= elem_prod(
-                    copy_row(dai_dbi, weights()[i].nr()),
-                    weights()[i]
-                ).transpose();
+                // grad.bias[i] = elem_prod(dE_dai, dai_dbi);
+                apply_elem_prod(grad.biases[i], dai_dbi);
+                // vmatrix_t<type> dai_dWi = elem_prod(
+                //     copy_row(dai_dbi, weights()[i].nr()),
+                //     copy_col(a_prev, weights()[i].nc())
+                // );
+                // grad.weight[i] = elem_prod(
+                //     copy_row(dE_dai, weights()[i].nr()),
+                //     dai_dWi
+                // );
+                for (int j = 0; j < weights()[i].nr(); j++) {
+                    for (int k = 0; k < weights()[i].nc(); k++) {
+                        grad.weights[i].at(j, k) *= dai_dbi[k]*a_prev[j];
+                    }
+                }
+                // dan_dai *= elem_prod(
+                //     copy_row(dai_dbi, weights()[i].nr()),
+                //     weights()[i]
+                // ).transpose();
+                vmatrix_t<type> dai_daim1 = weights()[i].transpose();
+                for (int j = 0; j < dai_daim1.nr(); j++) {
+                    for (int k = 0; k < dai_daim1.nc(); k++) {
+                        dai_daim1.at(j, k) *= dai_dbi[j];
+                    }
+                }
+                dan_dai *= dai_daim1;
             }
         }
     };

@@ -12,54 +12,52 @@ namespace neural {
 
     template <class type>
     struct Parameters {
-        protected:
-        vector<vmatrix_t<type>> _weights;
-        vector<vvect_t<type>> _biases;
+        vector<vmatrix_t<type>> weights;
+        vector<vvect_t<type>> biases;
 
-        public:
-        const vector<vmatrix_t<type>>& weights() const {return _weights;}
-        const vector<vvect_t<type>>& biases() const {return _biases;}
-
+        /*
+        The following are safe versions of parameter access.
+        */
         const vmatrix_t<type>& get_weight(int layer) const {
             assert(0 <= layer && layer < n_layer());
-            return _weights[layer];
+            return weights[layer];
         }
         const vvect_t<type>& get_bias(int layer) const {
             assert(0 <= layer && layer < n_layer());
-            return _biases[layer];
+            return biases[layer];
         }
         void set_weight(int layer, const vmatrix_t<type>& m) {
             assert(0 <= layer && layer < n_layer());
-            assert(m.nr() == _weights[layer].nr() && m.nc() == _weights[layer].nc());
-            _weights[layer] = m;
+            assert(m.nr() == weights[layer].nr() && m.nc() == weights[layer].nc());
+            weights[layer] = m;
         }
         void set_bias(int layer, const vvect_t<type>& v) {
             assert(0 <= layer && layer < n_layer());
-            assert(v.size() == _biases[layer].size());
-            _biases[layer] = v;
+            assert(v.size() == biases[layer].size());
+            biases[layer] = v;
         }
 
         Parameters(int in_size, int out_size, int n_layer, int layer_size) {
             assert(n_layer >= 1);
             assert(in_size >= 1 && out_size >= 1 && layer_size >= 1);
-            _weights.reserve(n_layer);
-            _biases.reserve(n_layer);
-            _weights.push_back(vmatrix_t<type>(in_size, layer_size));
-            _biases.push_back(vvect_t<type>(layer_size));
+            weights.reserve(n_layer);
+            biases.reserve(n_layer);
+            weights.push_back(vmatrix_t<type>(in_size, layer_size));
+            biases.push_back(vvect_t<type>(layer_size));
             for (int i = 1; i < n_layer-1; i++) {
-                _weights.push_back(vmatrix_t<type>(layer_size, layer_size));
-                _biases.push_back(vvect_t<type>(layer_size));
+                weights.push_back(vmatrix_t<type>(layer_size, layer_size));
+                biases.push_back(vvect_t<type>(layer_size));
             }
-            _weights.push_back(vmatrix_t<type>(layer_size, out_size));
-            _biases.push_back(vvect_t<type>(out_size));
+            weights.push_back(vmatrix_t<type>(layer_size, out_size));
+            biases.push_back(vvect_t<type>(out_size));
         }
         Parameters(const vector<vmatrix_t<type>>& weights, const vector<vvect_t<type>>& biases):
-        _weights(weights), _biases(biases) {
+        weights(weights), biases(biases) {
             assert(weights.size() == biases.size());
             assert(!weights.empty());
         }
 
-        int n_layer() const {return int(_weights.size());}
+        int n_layer() const {return int(weights.size());}
     };
 
     // equals
@@ -67,7 +65,7 @@ namespace neural {
     inline bool operator ==(const Parameters<type>& p1, const Parameters<type>& p2) {
         assert(p1.n_layer() == p2.n_layer());
         for (int i = 0; i < p1.n_layer(); i++) {
-            if (!(p1.get_weight(i) == p2.get_weight(i)) || !(p1.get_bias(i) == p2.get_bias(i))) {
+            if (!(p1.weights[i] == p2.weights[i]) || !(p1.biases[i] == p2.biases[i])) {
                 return false;
             }
         }
@@ -79,13 +77,22 @@ namespace neural {
     inline Parameters<type> operator -(const Parameters<type>& p) {
         Parameters<type> val = p;
         for (int i = 0; i < val.n_layer(); i++) {
-            val.set_weight(i, -val.get_weight(i));
-            val.set_bias(i, -val.get_bias(i));
+            apply_neg(val.weights[i]);
+            apply_neg(val.biases[i]);
         }
         return val;
     }
 
     // addition
+    template <class type>
+    inline Parameters<type>& operator +=(Parameters<type>& p1, const Parameters<type>& p2) {
+        assert(p1.n_layer() == p2.n_layer());
+        for (int i = 0; i < p1.n_layer(); i++) {
+            p1.weights[i] += p2.weights[i];
+            p1.biases[i] += p2.biases[i];
+        }
+        return p1;
+    }
     template <class type>
     inline Parameters<type> operator +(const Parameters<type>& p1, const Parameters<type>& p2) {
         Parameters<type> val = p1;
@@ -93,11 +100,11 @@ namespace neural {
         return val;
     }
     template <class type>
-    inline Parameters<type>& operator +=(Parameters<type>& p1, const Parameters<type>& p2) {
+    inline Parameters<type>& operator -=(Parameters<type>& p1, const Parameters<type>& p2) {
         assert(p1.n_layer() == p2.n_layer());
         for (int i = 0; i < p1.n_layer(); i++) {
-            p1.set_weight(i, p1.get_weight(i) + p2.get_weight(i));
-            p1.set_bias(i, p1.get_bias(i) + p2.get_bias(i));
+            p1.weights[i] -= p2.weights[i];
+            p1.biases[i] -= p2.biases[i];
         }
         return p1;
     }
@@ -107,17 +114,16 @@ namespace neural {
         val -= p2;
         return val;
     }
-    template <class type>
-    inline Parameters<type>& operator -=(Parameters<type>& p1, const Parameters<type>& p2) {
-        assert(p1.n_layer() == p2.n_layer());
-        for (int i = 0; i < p1.n_layer(); i++) {
-            p1.set_weight(i, p1.get_weight(i) - p2.get_weight(i));
-            p1.set_bias(i, p1.get_bias(i) - p2.get_bias(i));
-        }
-        return p1;
-    }
 
     // scalar multiplication
+    template <class type>
+    inline Parameters<type>& operator *=(Parameters<type>& p, type scale) {
+        for (int i = 0; i < p.n_layer(); i++) {
+            p.weights[i] *= scale;
+            p.biases[i] *= scale;
+        }
+        return p;
+    }
     template <class type>
     inline Parameters<type> operator *(const Parameters<type>& p, type scale) {
         Parameters<type> val = p;
@@ -125,10 +131,10 @@ namespace neural {
         return val;
     }
     template <class type>
-    inline Parameters<type>& operator *=(Parameters<type>& p, type scale) {
+    inline Parameters<type>& operator /=(Parameters<type>& p, type scale) {
         for (int i = 0; i < p.n_layer(); i++) {
-            p.set_weight(i, p.get_weight(i)*scale);
-            p.set_bias(i, p.get_bias(i)*scale);
+            p.weights[i] /= scale;
+            p.biases[i] /= scale;
         }
         return p;
     }
@@ -137,13 +143,5 @@ namespace neural {
         Parameters<type> val = p;
         val /= scale;
         return val;
-    }
-    template <class type>
-    inline Parameters<type>& operator /=(Parameters<type>& p, type scale) {
-        for (int i = 0; i < p.n_layer(); i++) {
-            p.set_weight(i, p.get_weight(i)/scale);
-            p.set_bias(i, p.get_bias(i)/scale);
-        }
-        return p;
     }
 }

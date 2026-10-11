@@ -45,6 +45,7 @@ TestBatch tests({
 
         assert(losses.back() < losses.front());
         assert(acc >= 0.7);
+        assert(acc_new >= 0.7);
     }}
 });
 

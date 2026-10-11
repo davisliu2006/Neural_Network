@@ -26,8 +26,8 @@ namespace neural {
         Parameters<type> params;
         Normalizer<type> normalizer;
 
-        const vector<vmatrix_t<type>>& weights() const {return params.weights();}
-        const vector<vvect_t<type>>& biases() const {return params.biases();}
+        const vector<vmatrix_t<type>>& weights() const {return params.weights;}
+        const vector<vvect_t<type>>& biases() const {return params.biases;}
 
         public:
         const vmatrix_t<type>& get_weight(int layer) const {
@@ -45,7 +45,8 @@ namespace neural {
 
         vvect_t<type> activation(const vvect_t<type>& x, bool last = false) const {
             vvect_t<type> val = x;
-            return apply_activation(val, last);
+            apply_activation(val, last);
+            return val;
         }
         vvect_t<type>& apply_activation(vvect_t<type>& x, bool last = false) const {
             auto f = (last? _last_activation : _activation);
