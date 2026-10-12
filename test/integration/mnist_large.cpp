@@ -21,17 +21,27 @@ TestBatch tests({
         auto examples = vector<TrainingExample<float>>(
             dataset.begin(), dataset.begin() + 1000
         );
+        auto lr_examples = vector<TrainingExample<float>>(
+            dataset.begin(), dataset.begin() + 20
+        );
         auto test_examples = vector<TrainingExample<float>>(
             dataset.begin() + 1000, dataset.begin() + 1200
         );
         
-        TrainableNetwork<float> net(784, 10, 3, 64, activation_t::SIGMOID);
+        TrainableNetwork<float> net(784, 10, 3, 64, activation_t::RELU, activation_t::SIGMOID);
         net.init_random();
 
-        const float learning_rate = 1;
+        estimate_t<float> lr_estimate = {NAN, 0.05, 0.5};
+        for (int i = 0; i < 2; i++) {
+            lr_estimate = net.probe_learning_rate(
+                lr_examples, lr_estimate.lower, lr_estimate.upper, 10, 20
+            );
+        }
+        cout << "Estimated learning rate: " << lr_estimate.value
+            << " in range [" << lr_estimate.lower << ", " << lr_estimate.upper << "]\n";
         const int epochs = 100;
         double t0 = time();
-        vector<float> losses = net.train(examples, learning_rate, epochs);
+        vector<float> losses = net.train(examples, lr_estimate.value, epochs);
         double t1 = time();
         cout << "Training time: " << t1-t0 << "s" << "\n";
 

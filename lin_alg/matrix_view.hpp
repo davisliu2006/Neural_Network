@@ -26,9 +26,9 @@ namespace lin_alg {
 
         transpose_view(const vmatrix_t<type>& orig): _orig(orig) {}
 
-        int nr() const {return _orig.nc();}
-        int nc() const {return _orig.nr();}
-        type at(int i, int j) const {return _orig.at(j, i);}
+        int nr() const override {return _orig.nc();}
+        int nc() const override {return _orig.nr();}
+        type at(int i, int j) const override {return _orig.at(j, i);}
     };
 
     template <class type>
@@ -38,9 +38,9 @@ namespace lin_alg {
 
         copy_row_view(const vvect_t<type>& orig, int nr): _orig(orig), _nr(nr) {}
 
-        int nr() const {return _nr;}
-        int nc() const {return _orig.size();}
-        type at(int i, int j) const {return _orig.at(j, i);}
+        int nr() const override {return _nr;}
+        int nc() const override {return _orig.size();}
+        type at(int, int j) const override {return _orig[j];}
     };
 
     template <class type>
@@ -50,17 +50,19 @@ namespace lin_alg {
 
         copy_col_view(const vvect_t<type>& orig, int nc): _orig(orig), _nc(nc) {}
 
-        int nr() const {return _orig.size();}
-        int nc() const {return _nc;}
-        type at(int i, int j) const {return _orig.at(j, i);}
+        int nr() const override {return _orig.size();}
+        int nc() const override {return _nc;}
+        type at(int i, int) const override {return _orig[i];}
     };
 
     // matrix addition
     template <class type>
     inline vmatrix_t<type>& operator +=(vmatrix_t<type>& m1, const matrix_view<type>& m2) {
         assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
-        #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {m1.raw_at(i) += m2.raw_at(i);}
+        for (int i = 0; i < m1.nr(); i++) {
+            #pragma omp simd
+            for (int j = 0; j < m1.nc(); j++) {m1.at(i, j) += m2.at(i, j);}
+        }
         return m1;
     }
     template <class type>
@@ -72,8 +74,10 @@ namespace lin_alg {
     template <class type>
     inline vmatrix_t<type>& operator -=(vmatrix_t<type>& m1, const matrix_view<type>& m2) {
         assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
-        #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {m1.raw_at(i) -= m2.raw_at(i);}
+        for (int i = 0; i < m1.nr(); i++) {
+            #pragma omp simd
+            for (int j = 0; j < m1.nc(); j++) {m1.at(i, j) -= m2.at(i, j);}
+        }
         return m1;
     }
     template <class type>
@@ -104,8 +108,10 @@ namespace lin_alg {
     template <class type>
     inline vmatrix_t<type>& apply_elem_prod(vmatrix_t<type>& m1, const matrix_view<type>& m2) {
         assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
-        #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {m1.raw_at(i) *= m2.raw_at(i);}
+        for (int i = 0; i < m1.nr(); i++) {
+            #pragma omp simd
+            for (int j = 0; j < m1.nc(); j++) {m1.at(i, j) *= m2.at(i, j);}
+        }
         return m1;
     }
     template <class type>
