@@ -3,6 +3,7 @@
 #include <cmath>
 #include <limits>
 
+#include "../lin_alg/matrix_view.hpp"
 #include "network.hpp"
 #include "rng.hpp"
 #include "training_example.hpp"
@@ -177,50 +178,19 @@ namespace neural {
             );
             for (int i = n_layer()-1; i >= 0; i--) {
                 const auto& a_prev = (i == 0? this->normalized_in : this->activations[i-1]);
-                // grad.bias[i] = dE_dai;
+                const vmatrix_t<type>& w = weights()[i];
                 grad.biases[i] = dE_dai;
-                // grad.weight[i] = copy_row(dE_dai, weights()[i].nr());
-                for (int j = 0; j < weights()[i].nr(); j++) {
-                    #pragma omp simd
-                    for (int k = 0; k < weights()[i].nc(); k++) {
-                        grad.weights[i].at(j, k) = dE_dai[k];
-                    }
-                }
                 vvect_t<type> dai_dbi = (
                     _loss == loss_t::CROSS_ENTROPY && i == n_layer()-1?
                     vvect_t<type>(this->pre_activations[i].size(), type(1)) :
                     activation_d(this->pre_activations[i], i == n_layer()-1)
                 );
-                // grad.bias[i] = elem_prod(dE_dai, dai_dbi);
                 apply_elem_prod(grad.biases[i], dai_dbi);
-                // vmatrix_t<type> dai_dWi = elem_prod(
-                //     copy_row(dai_dbi, weights()[i].nr()),
-                //     copy_col(a_prev, weights()[i].nc())
-                // );
-                // grad.weight[i] = elem_prod(
-                //     copy_row(dE_dai, weights()[i].nr()),
-                //     dai_dWi
-                // );
-                for (int j = 0; j < weights()[i].nr(); j++) {
-                    #pragma omp simd
-                    for (int k = 0; k < weights()[i].nc(); k++) {
-                        grad.weights[i].at(j, k) *= dai_dbi[k]*a_prev[j];
-                    }
-                }
-                // dE_dai *= elem_prod(
-                //     copy_row(dai_dbi, weights()[i].nr()),
-                //     weights()[i]
-                // ).transpose();
-                vvect_t<type> dE_dai_new = vvect_t<type>(weights()[i].nr());
-                for (int j = 0; j < weights()[i].nr(); j++) {
-                    type sum = 0;
-                    #pragma omp simd reduction(+:sum)
-                    for (int k = 0; k < weights()[i].nc(); k++) {
-                        sum += dE_dai[k]*dai_dbi[k]*weights()[i].at(j, k);
-                    }
-                    dE_dai_new[j] = sum;
-                }
-                dE_dai = dE_dai_new;
+                assign(grad.weights[i], as_elem_prod(
+                    as_copy_row(grad.biases[i], w.nr()),
+                    as_copy_col(a_prev, w.nc())
+                ));
+                if (i > 0) {dE_dai = grad.biases[i]*as_transpose(w);}
             }
         }
     };
