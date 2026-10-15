@@ -159,17 +159,17 @@ namespace neural {
         ) {
             const auto& [x, y] = example;
             compute(x);
-            vvect_t<type> dE_dan = (this->activations.back() - y)*type(2);
-            vmatrix_t<type> dan_dai = vmatrix_t<type>::ID(out_size());
+            // dE_dai = dE_dan
+            vvect_t<type> dE_dai = (this->activations.back() - y)*type(2);
             for (int i = n_layer()-1; i >= 0; i--) {
                 const auto& a_prev = (i == 0? this->normalized_in : this->activations[i-1]);
-                // vvect_t<type> dE_dai = dE_dan*dan_dai;
                 // grad.bias[i] = dE_dai;
-                grad.biases[i] = dE_dan*dan_dai;
+                grad.biases[i] = dE_dai;
                 // grad.weight[i] = copy_row(dE_dai, weights()[i].nr());
                 for (int j = 0; j < weights()[i].nr(); j++) {
+                    #pragma omp simd
                     for (int k = 0; k < weights()[i].nc(); k++) {
-                        grad.weights[i].at(j, k) = grad.biases[i][k];
+                        grad.weights[i].at(j, k) = dE_dai[k];
                     }
                 }
                 vvect_t<type> dai_dbi = activation_d(
@@ -186,21 +186,25 @@ namespace neural {
                 //     dai_dWi
                 // );
                 for (int j = 0; j < weights()[i].nr(); j++) {
+                    #pragma omp simd
                     for (int k = 0; k < weights()[i].nc(); k++) {
                         grad.weights[i].at(j, k) *= dai_dbi[k]*a_prev[j];
                     }
                 }
-                // dan_dai *= elem_prod(
+                // dE_dai *= elem_prod(
                 //     copy_row(dai_dbi, weights()[i].nr()),
                 //     weights()[i]
                 // ).transpose();
-                vmatrix_t<type> dai_daim1 = weights()[i].transpose();
-                for (int j = 0; j < dai_daim1.nr(); j++) {
-                    for (int k = 0; k < dai_daim1.nc(); k++) {
-                        dai_daim1.at(j, k) *= dai_dbi[j];
+                vvect_t<type> dE_dai_new = vvect_t<type>(weights()[i].nr());
+                for (int j = 0; j < weights()[i].nr(); j++) {
+                    type sum = 0;
+                    #pragma omp simd reduction(+:sum)
+                    for (int k = 0; k < weights()[i].nc(); k++) {
+                        sum += dE_dai[k]*dai_dbi[k]*weights()[i].at(j, k);
                     }
+                    dE_dai_new[j] = sum;
                 }
-                dan_dai *= dai_daim1;
+                dE_dai = dE_dai_new;
             }
         }
     };
