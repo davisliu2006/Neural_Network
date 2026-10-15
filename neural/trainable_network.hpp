@@ -27,6 +27,7 @@ namespace neural {
 
         protected:
         f_type _activation_d, _last_activation_d;
+        loss_t _loss;
 
         public:
         vvect_t<type> activation_d(const vvect_t<type>& x, bool last = false) const {
@@ -47,11 +48,17 @@ namespace neural {
         TrainableNetwork(in_size, out_size, n_layer, layer_size, act, act) {}
         TrainableNetwork(
             int in_size, int out_size, int n_layer, int layer_size,
-            activation_t act, activation_t last_act
+            activation_t act, activation_t last_act,
+            loss_t loss = loss_t::MSE
         ):
         StoredNetwork<type>(in_size, out_size, n_layer, layer_size, act, last_act),
         _activation_d(get_activation_d<type>(act)),
-        _last_activation_d(get_activation_d<type>(last_act)) {}
+        _last_activation_d(get_activation_d<type>(last_act)),
+        _loss(loss) {
+            if (loss == loss_t::CROSS_ENTROPY) {
+                assert(last_act == activation_t::SIGMOID);
+            }
+        }
 
         void init_random() {
             for (int i = 0; i < n_layer(); i++) {
@@ -67,7 +74,12 @@ namespace neural {
             assert(!examples.empty());
             type total = 0;
             for (const auto& [x, y]: examples) {
-                total += (compute(x) - y).mag2();
+                if (_loss == loss_t::MSE) {
+                    total += (compute(x) - y).mag2();
+                } else {
+                    compute(x);
+                    total += binary_cross_entropy(this->pre_activations.back(), y);
+                }
             }
             return total/type(examples.size());
         }
@@ -160,7 +172,9 @@ namespace neural {
             const auto& [x, y] = example;
             compute(x);
             // dE_dai = dE_dan
-            vvect_t<type> dE_dai = (this->activations.back() - y)*type(2);
+            vvect_t<type> dE_dai = (this->activations.back() - y)*(
+                _loss == loss_t::MSE? type(2) : type(1)
+            );
             for (int i = n_layer()-1; i >= 0; i--) {
                 const auto& a_prev = (i == 0? this->normalized_in : this->activations[i-1]);
                 // grad.bias[i] = dE_dai;
@@ -172,8 +186,10 @@ namespace neural {
                         grad.weights[i].at(j, k) = dE_dai[k];
                     }
                 }
-                vvect_t<type> dai_dbi = activation_d(
-                    this->pre_activations[i], i == n_layer()-1
+                vvect_t<type> dai_dbi = (
+                    _loss == loss_t::CROSS_ENTROPY && i == n_layer()-1?
+                    vvect_t<type>(this->pre_activations[i].size(), type(1)) :
+                    activation_d(this->pre_activations[i], i == n_layer()-1)
                 );
                 // grad.bias[i] = elem_prod(dE_dai, dai_dbi);
                 apply_elem_prod(grad.biases[i], dai_dbi);

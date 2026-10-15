@@ -19,13 +19,13 @@ TestBatch tests({
     {"mnist subset train", []() {
         assert(dataset.size() >= 1200);
         auto examples = vector<TrainingExample<float>>(
-            dataset.begin(), dataset.begin() + 1000
+            dataset.begin(), dataset.begin() + 3000
         );
         auto lr_examples = vector<TrainingExample<float>>(
             dataset.begin(), dataset.begin() + 20
         );
         auto test_examples = vector<TrainingExample<float>>(
-            dataset.begin() + 1000, dataset.begin() + 1200
+            dataset.begin() + 3000, dataset.begin() + 4000
         );
         
         TrainableNetwork<float> net(784, 10, 3, 64, activation_t::RELU, activation_t::SIGMOID);
@@ -54,8 +54,8 @@ TestBatch tests({
         cout << "New data accuracy:" << acc_new << "\n";
 
         assert(losses.back() < losses.front());
-        assert(acc >= 0.7);
-        assert(acc_new >= 0.7);
+        assert(acc >= 0.93);
+        assert(acc_new >= 0.9);
     }}
 });
 

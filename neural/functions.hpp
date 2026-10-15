@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cmath>
 
 #include "../lin_alg/vector.hpp"
@@ -11,6 +12,11 @@ namespace neural {
     enum class activation_t {
         RELU,
         SIGMOID
+    };
+
+    enum class loss_t {
+        MSE,
+        CROSS_ENTROPY
     };
 
     template <class type>
@@ -30,6 +36,22 @@ namespace neural {
     inline type sigmoid_d(type x) {
         double enx = std::exp(double(-x));
         return enx / sq(1+enx);
+    }
+
+    /**
+     * Binary cross-entropy of independent logits `z` against targets in [0, 1].
+     */
+    template <class type>
+    inline type binary_cross_entropy(const vvect_t<type>& z, const vvect_t<type>& y) {
+        assert(z.size() > 0 && z.size() == y.size());
+        type e = 0;
+        for (int i = 0; i < z.size(); i++) {
+            type zi = z[i];
+            e += std::max(zi, type(0)) - y[i]*zi + std::log(
+                type(1) + std::exp(-std::abs(zi))
+            );
+        }
+        return e;
     }
 
     template <class type>

@@ -19,13 +19,13 @@ TestBatch tests({
     {"mnist subset train", []() {
         assert(dataset.size() >= 300);
         auto examples = vector<TrainingExample<double>>(
-            dataset.begin(), dataset.begin() + 200
+            dataset.begin(), dataset.begin() + 800
         );
         auto lr_examples = vector<TrainingExample<double>>(
             dataset.begin(), dataset.begin() + 20
         );
         auto test_examples = vector<TrainingExample<double>>(
-            dataset.begin() + 200, dataset.begin() + 300
+            dataset.begin() + 800, dataset.begin() + 1000
         );
         
         TrainableNetwork<double> net(784, 10, 3, 64, activation_t::SIGMOID);
@@ -39,7 +39,7 @@ TestBatch tests({
         }
         cout << "Estimated learning rate: " << lr_estimate.value
             << " in range [" << lr_estimate.lower << ", " << lr_estimate.upper << "]\n";
-        const int epochs = 50;
+        const int epochs = 100;
         double t0 = time();
         vector<double> losses = net.train(examples, lr_estimate.value, epochs);
         double t1 = time();
@@ -54,18 +54,19 @@ TestBatch tests({
         cout << "New data accuracy:" << acc_new << "\n";
 
         assert(losses.back() < losses.front());
-        assert(acc >= 0.7);
+        assert(acc >= 0.85);
+        assert(acc_new >= 0.76);
     }},
     {"mnist subset train relu", []() {
         assert(dataset.size() >= 300);
         auto examples = vector<TrainingExample<double>>(
-            dataset.begin(), dataset.begin() + 200
+            dataset.begin(), dataset.begin() + 800
         );
         auto lr_examples = vector<TrainingExample<double>>(
             dataset.begin(), dataset.begin() + 20
         );
         auto test_examples = vector<TrainingExample<double>>(
-            dataset.begin() + 200, dataset.begin() + 300
+            dataset.begin() + 800, dataset.begin() + 1000
         );
         
         TrainableNetwork<double> net(784, 10, 3, 64, activation_t::RELU, activation_t::SIGMOID);
@@ -79,7 +80,7 @@ TestBatch tests({
         }
         cout << "Estimated learning rate: " << lr_estimate.value
             << " in range [" << lr_estimate.lower << ", " << lr_estimate.upper << "]\n";
-        const int epochs = 50;
+        const int epochs = 100;
         double t0 = time();
         vector<double> losses = net.train(examples, lr_estimate.value, epochs);
         double t1 = time();
@@ -94,7 +95,8 @@ TestBatch tests({
         cout << "New data accuracy:" << acc_new << "\n";
 
         assert(losses.back() < losses.front());
-        assert(acc >= 0.7);
+        assert(acc >= 0.95);
+        assert(acc_new >= 0.85);
     }}
 });
 
