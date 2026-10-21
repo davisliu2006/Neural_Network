@@ -23,7 +23,8 @@ namespace neural {
             StoredNetwork<type>::set_weight, StoredNetwork<type>::set_bias;
         using StoredNetwork<type>::activation, StoredNetwork<type>::apply_activation;
         using StoredNetwork<type>::in_size, StoredNetwork<type>::out_size,
-            StoredNetwork<type>::n_layer, StoredNetwork<type>::layer_size;
+            StoredNetwork<type>::n_layer, StoredNetwork<type>::layer_size,
+            StoredNetwork<type>::default_batch_size;
         using StoredNetwork<type>::compute;
 
         protected:
@@ -39,6 +40,16 @@ namespace neural {
         vvect_t<type>& apply_activation_d(vvect_t<type>& x, bool last = false) const {
             auto f = (last? _last_activation_d : _activation_d);
             for (int i = 0; i < x.size(); i++) {x[i] = f(x[i]);}
+            return x;
+        }
+        vmatrix_t<type> activation_d(const vmatrix_t<type>& x, bool last = false) const {
+            vmatrix_t<type> val = x;
+            apply_activation_d(val, last);
+            return val;
+        }
+        vmatrix_t<type>& apply_activation_d(vmatrix_t<type>& x, bool last = false) const {
+            auto f = (last? _last_activation_d : _activation_d);
+            for (int i = 0; i < x.raw_size(); i++) {x.raw_at(i) = f(x.raw_at(i));}
             return x;
         }
 
@@ -74,9 +85,13 @@ namespace neural {
         type loss(const vector<TrainingExample<type>>& examples) {
             assert(!examples.empty());
             type total = 0;
-            for (const auto& [x, y]: examples) {
+            int B = default_batch_size();
+            for (int start = 0; start < int(examples.size()); start += B) {
+                int remaining = int(examples.size()) - start;
+                int n = remaining < B? remaining : B;
+                auto [x, y] = make_batch(examples, start, n);
                 if (_loss == loss_t::MSE) {
-                    total += (compute(x) - y).mag2();
+                    total += (compute(x) - y).vect_mag2();
                 } else {
                     compute(x);
                     total += binary_cross_entropy(this->pre_activations.back(), y);
@@ -155,42 +170,65 @@ namespace neural {
 
         protected:
         // HELPERS
+        pair<vmatrix_t<type>, vmatrix_t<type>> make_batch(
+            const vector<TrainingExample<type>>& examples, int start, int n
+        ) const {
+            vmatrix_t<type> x(n, in_size()), y(n, out_size());
+            for (int i = 0; i < n; i++) {
+                const auto& ex = examples[start+i];
+                assert(ex.input.size() == in_size() && ex.output.size() == out_size());
+                for (int j = 0; j < in_size(); j++) {x.at(i, j) = ex.input[j];}
+                for (int j = 0; j < out_size(); j++) {y.at(i, j) = ex.output[j];}
+            }
+            return {x, y};
+        }
         Parameters<type> compute_gradient(
             const vector<TrainingExample<type>>& examples
         ) {
             Parameters<type> grad(in_size(), out_size(), n_layer(), layer_size());
             Parameters<type> partial(in_size(), out_size(), n_layer(), layer_size());
-            for (const auto& example: examples) {
-                compute_partial_gradient(partial, example);
+            int B = default_batch_size();
+            for (int start = 0; start < int(examples.size()); start += B) {
+                int remaining = int(examples.size()) - start;
+                int n = remaining < B? remaining : B;
+                auto [x, y] = make_batch(examples, start, n);
+                compute_partial_gradient(partial, x, y);
                 grad += partial;
             }
             return grad/type(examples.size());
         }
         void compute_partial_gradient(
             Parameters<type>& grad,
-            const TrainingExample<type>& example
+            const vmatrix_t<type>& x,
+            const vmatrix_t<type>& y
         ) {
-            const auto& [x, y] = example;
             compute(x);
             // dE_dai = dE_dan
-            vvect_t<type> dE_dai = (this->activations.back() - y)*(
+            vmatrix_t<type> dE_dai = (this->activations.back() - y)*(
                 _loss == loss_t::MSE? type(2) : type(1)
             );
             for (int i = n_layer()-1; i >= 0; i--) {
-                const auto& a_prev = (i == 0? this->normalized_in : this->activations[i-1]);
-                const vmatrix_t<type>& w = weights()[i];
-                grad.biases[i] = dE_dai;
-                vvect_t<type> dai_dbi = (
-                    _loss == loss_t::CROSS_ENTROPY && i == n_layer()-1?
-                    vvect_t<type>(this->pre_activations[i].size(), type(1)) :
-                    activation_d(this->pre_activations[i], i == n_layer()-1)
+                const auto& a_prev = (
+                    i == 0? this->normalized_in : this->activations[i-1]
                 );
-                apply_elem_prod(grad.biases[i], dai_dbi);
-                assign(grad.weights[i], as_elem_prod(
-                    as_copy_row(grad.biases[i], w.nr()),
-                    as_copy_col(a_prev, w.nc())
-                ));
-                if (i > 0) {dE_dai = grad.biases[i]*as_transpose(w);}
+                const vmatrix_t<type>& w = weights()[i];
+                vmatrix_t<type> dE_dbi = dE_dai;
+                vmatrix_t<type> dai_dbi(
+                    this->pre_activations[i].nr(), this->pre_activations[i].nc()
+                );
+                if (_loss == loss_t::CROSS_ENTROPY && i == n_layer()-1) {
+                    for (int k = 0; k < dai_dbi.raw_size(); k++) {
+                        dai_dbi.raw_at(k) = type(1);
+                    }
+                } else {
+                    dai_dbi = activation_d(
+                        this->pre_activations[i], i == n_layer()-1
+                    );
+                }
+                apply_elem_prod(dE_dbi, dai_dbi);
+                grad.biases[i] = sum_rows(dE_dbi);
+                grad.weights[i] = as_transpose(a_prev) * dE_dbi;
+                if (i > 0) {dE_dai = dE_dbi * as_transpose(w);}
             }
         }
     };

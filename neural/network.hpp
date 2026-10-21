@@ -53,6 +53,16 @@ namespace neural {
             for (int i = 0; i < x.size(); i++) {x[i] = f(x[i]);}
             return x;
         }
+        vmatrix_t<type> activation(const vmatrix_t<type>& x, bool last = false) const {
+            vmatrix_t<type> val = x;
+            apply_activation(val, last);
+            return val;
+        }
+        vmatrix_t<type>& apply_activation(vmatrix_t<type>& x, bool last = false) const {
+            auto f = (last? _last_activation : _activation);
+            for (int i = 0; i < x.raw_size(); i++) {x.raw_at(i) = f(x.raw_at(i));}
+            return x;
+        }
 
         Network(
             int in_size, int out_size, int n_layer, int layer_size,
@@ -78,11 +88,12 @@ namespace neural {
         activation_t act() const {return _act;}
         activation_t last_act() const {return _last_act;}
 
-        virtual vvect_t<type> compute(const vvect_t<type>& in) {
-            assert(in.size() == in_size());
-            vvect_t<type> out = normalizer.normalize(in);
+        virtual vmatrix_t<type> compute(const vmatrix_t<type>& in) {
+            assert(in.nr() > 0 && in.nc() == in_size());
+            vmatrix_t<type> out = normalizer.normalize(in);
             for (int i = 0; i < n_layer(); i++) {
-                out = out * weights()[i] + biases()[i];
+                out = out * weights()[i];
+                apply_add_row(out, biases()[i]);
                 apply_activation(out, i == n_layer()-1);
             }
             return out;
@@ -99,9 +110,10 @@ namespace neural {
             Network<type>::n_layer, Network<type>::layer_size;
 
         protected:
-        vvect_t<type> normalized_in;
-        vector<vvect_t<type>> pre_activations;
-        vector<vvect_t<type>> activations;
+        int _default_batch_size;
+        vmatrix_t<type> normalized_in;
+        vector<vmatrix_t<type>> pre_activations;
+        vector<vmatrix_t<type>> activations;
 
         public:
         StoredNetwork(
@@ -114,24 +126,33 @@ namespace neural {
             activation_t act, activation_t last_act
         ):
         Network<type>(in_size, out_size, n_layer, layer_size, act, last_act),
-        normalized_in(in_size) {
+        _default_batch_size(1),
+        normalized_in(1, in_size) {
             pre_activations.reserve(n_layer);
             activations.reserve(n_layer);
             for (int i = 0; i < n_layer-1; i++) {
-                pre_activations.push_back(vvect_t<type>(layer_size));
-                activations.push_back(vvect_t<type>(layer_size));
+                pre_activations.push_back(vmatrix_t<type>(1, layer_size));
+                activations.push_back(vmatrix_t<type>(1, layer_size));
             }
-            pre_activations.push_back(vvect_t<type>(out_size));
-            activations.push_back(vvect_t<type>(out_size));
+            pre_activations.push_back(vmatrix_t<type>(1, out_size));
+            activations.push_back(vmatrix_t<type>(1, out_size));
         }
 
-        vvect_t<type> compute(const vvect_t<type>& in) override {
-            assert(in.size() == in_size());
+        int default_batch_size() const {return _default_batch_size;}
+        void set_default_batch_size(int default_batch_size) {
+            assert(default_batch_size > 0);
+            _default_batch_size = default_batch_size;
+        }
+
+        vmatrix_t<type> compute(const vmatrix_t<type>& in) override {
+            assert(in.nr() > 0 && in.nc() == in_size());
             normalized_in = this->normalizer.normalize(in);
-            pre_activations[0] = normalized_in * weights()[0] + biases()[0];
+            pre_activations[0] = normalized_in * weights()[0];
+            apply_add_row(pre_activations[0], biases()[0]);
             activations[0] = activation(pre_activations[0]);
             for (int i = 1; i < n_layer(); i++) {
-                pre_activations[i] = activations[i-1] * weights()[i] + biases()[i];
+                pre_activations[i] = activations[i-1] * weights()[i];
+                apply_add_row(pre_activations[i], biases()[i]);
                 activations[i] = activation(pre_activations[i], i == n_layer()-1);
             }
             return activations.back();

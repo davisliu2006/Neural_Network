@@ -5,6 +5,7 @@
 #include "../test.hpp"
 #include "../../lin_alg/vector.hpp"
 #include "../../lin_alg/matrix.hpp"
+#include "../../lin_alg/matrix_view.hpp"
 
 using namespace std;
 using namespace lin_alg;
@@ -88,6 +89,25 @@ TestBatch tests({
         assert(m.nr() == 2 && m.nc() == 3);
         assert(m.at(0, 0) == 1 && m.at(1, 1) == 5);
         assert(m.raw_at(0) == 1 && m.raw_at(4) == 5);
+    }},
+    {"matrix apply_add_row", []() {
+        vmatrix_t<int> m = M3;
+        vvect_t<int> b({10, 20, 30});
+        assert(apply_add_row(m, b) == vmatrix_t<int>(2, 3, {
+            11, 22, 33,
+            14, 25, 36
+        }));
+        assert(apply_add_row(m, -b) == M3);
+    }},
+    {"matrix transpose view multiply", []() {
+        vmatrix_t<int> b(2, 2, {
+            1, 2,
+            3, 4
+        });
+        // as_transpose(M3) * b == M3.transpose() * b  (3x2 * 2x2)
+        assert(as_transpose(M3) * b == M3.transpose() * b);
+        // M3 * as_transpose(M1) == M3 * M1.transpose()  (2x3 * 3x3)
+        assert(M3 * as_transpose(M1) == M3 * M1.transpose());
     }}
 });
 

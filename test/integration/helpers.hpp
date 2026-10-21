@@ -21,7 +21,9 @@ static double accuracy(
 ) {
     int correct = 0;
     for (const auto& [x, y]: examples) {
-        if (max_index(net.compute(x)) == max_index(y)) {correct++;}
+        if (max_index(get_row(net.compute(copy_row(x, 1)), 0)) == max_index(y)) {
+            correct++;
+        }
     }
     return double(correct)/double(examples.size());
 }

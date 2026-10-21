@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cmath>
 
+#include "../lin_alg/matrix.hpp"
 #include "../lin_alg/vector.hpp"
 #include "base.hpp"
 
@@ -48,6 +49,18 @@ namespace neural {
         for (int i = 0; i < z.size(); i++) {
             type zi = z[i];
             e += std::max(zi, type(0)) - y[i]*zi + std::log(
+                type(1) + std::exp(-std::abs(zi))
+            );
+        }
+        return e;
+    }
+    template <class type>
+    inline type binary_cross_entropy(const vmatrix_t<type>& z, const vmatrix_t<type>& y) {
+        assert(z.raw_size() > 0 && z.nr() == y.nr() && z.nc() == y.nc());
+        type e = 0;
+        for (int i = 0; i < z.raw_size(); i++) {
+            type zi = z.raw_at(i);
+            e += std::max(zi, type(0)) - y.raw_at(i)*zi + std::log(
                 type(1) + std::exp(-std::abs(zi))
             );
         }

@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "../lin_alg/matrix.hpp"
 #include "../lin_alg/vector.hpp"
 #include "base.hpp"
 #include "training_example.hpp"
@@ -21,6 +22,17 @@ namespace neural {
         vvect_t<type>& apply_normalize(vvect_t<type>& v) const {
             for (type& x: v) {(x -= mean) /= std_dev;}
             return v;
+        }
+        vmatrix_t<type> normalize(const vmatrix_t<type>& m) const {
+            vmatrix_t<type> val = m;
+            return apply_normalize(val);
+        }
+        vmatrix_t<type>& apply_normalize(vmatrix_t<type>& m) const {
+            #pragma omp simd
+            for (int i = 0; i < m.raw_size(); i++) {
+                (m.raw_at(i) -= mean) /= std_dev;
+            }
+            return m;
         }
         void init_from_examples(const vector<TrainingExample<type>>& examples) {
             mean = 0;

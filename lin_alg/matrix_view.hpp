@@ -159,6 +159,44 @@ namespace lin_alg {
         return v = v*m;
     }
 
+    // matrix * transpose view: A * W^T
+    template <class type>
+    inline vmatrix_t<type> operator *(
+        const vmatrix_t<type>& a, const matrix_view<transpose_view<type>>& b
+    ) {
+        const vmatrix_t<type>& w = b._view._orig;
+        assert(a.nc() == w.nc());
+        vmatrix_t<type> val(a.nr(), w.nr());
+        for (int i = 0; i < a.nr(); i++) {
+            for (int j = 0; j < w.nr(); j++) {
+                type sum = 0;
+                #pragma omp simd reduction(+:sum)
+                for (int k = 0; k < w.nc(); k++) {sum += a.at(i, k)*w.at(j, k);}
+                val.at(i, j) = sum;
+            }
+        }
+        return val;
+    }
+
+    // transpose view * matrix: A^T * B
+    template <class type>
+    inline vmatrix_t<type> operator *(
+        const matrix_view<transpose_view<type>>& a, const vmatrix_t<type>& b
+    ) {
+        const vmatrix_t<type>& a_orig = a._view._orig;
+        assert(a_orig.nr() == b.nr());
+        vmatrix_t<type> val(a_orig.nc(), b.nc());
+        for (int k = 0; k < b.nr(); k++) {
+            for (int i = 0; i < a_orig.nc(); i++) {
+                #pragma omp simd
+                for (int j = 0; j < b.nc(); j++) {
+                    val.at(i, j) += a_orig.at(k, i)*b.at(k, j);
+                }
+            }
+        }
+        return val;
+    }
+
     // element-wise multiplication
     template <class type, class View>
     inline vmatrix_t<type>& apply_elem_prod(vmatrix_t<type>& m1, const matrix_view<View>& m2) {
