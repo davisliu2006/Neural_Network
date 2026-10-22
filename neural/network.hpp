@@ -156,15 +156,24 @@ namespace neural {
         }
 
         protected:
-        void ensure_buffers(int n) {
-            if (normalized_in.nr() == n) {return;}
-            normalized_in = vmatrix_t<type>(n, in_size());
+        // Capacity is _default_batch_size: grow that if n exceeds it, then set
+        // logical rows to n without shrinking storage.
+        virtual void ensure_buffers(int n) {
+            assert(n > 0);
+            if (n > _default_batch_size) {_default_batch_size = n;}
+            int cap = _default_batch_size;
+            normalized_in.ensure_capacity(cap, in_size());
+            normalized_in.set_shape(n, in_size());
             for (int i = 0; i < n_layer()-1; i++) {
-                pre_activations[i] = vmatrix_t<type>(n, layer_size());
-                activations[i] = vmatrix_t<type>(n, layer_size());
+                pre_activations[i].ensure_capacity(cap, layer_size());
+                pre_activations[i].set_shape(n, layer_size());
+                activations[i].ensure_capacity(cap, layer_size());
+                activations[i].set_shape(n, layer_size());
             }
-            pre_activations.back() = vmatrix_t<type>(n, out_size());
-            activations.back() = vmatrix_t<type>(n, out_size());
+            pre_activations.back().ensure_capacity(cap, out_size());
+            pre_activations.back().set_shape(n, out_size());
+            activations.back().ensure_capacity(cap, out_size());
+            activations.back().set_shape(n, out_size());
         }
     };
 }

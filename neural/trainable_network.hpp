@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 
@@ -30,6 +31,10 @@ namespace neural {
         protected:
         f_type _activation_d, _last_activation_d;
         loss_t _loss;
+        // internal buffers
+        Parameters<type> grad, partial;
+        vmatrix_t<type> batch_x, batch_y;
+        vmatrix_t<type> dE_dai, dE_dbi;
 
         public:
         void assign_activation_d(
@@ -60,7 +65,9 @@ namespace neural {
         StoredNetwork<type>(in_size, out_size, n_layer, layer_size, act, last_act),
         _activation_d(get_activation_d<type>(act)),
         _last_activation_d(get_activation_d<type>(last_act)),
-        _loss(loss) {
+        _loss(loss),
+        grad(in_size, out_size, n_layer, layer_size),
+        partial(in_size, out_size, n_layer, layer_size) {
             if (loss == loss_t::CROSS_ENTROPY) {
                 assert(last_act == activation_t::SIGMOID);
             }
@@ -83,12 +90,14 @@ namespace neural {
             for (int start = 0; start < int(examples.size()); start += B) {
                 int remaining = int(examples.size()) - start;
                 int n = remaining < B? remaining : B;
-                auto [x, y] = make_batch(examples, start, n);
+                make_batch(examples, start, n);
                 if (_loss == loss_t::MSE) {
-                    total += (compute(x) - y).vect_mag2();
+                    total += (compute(batch_x) - batch_y).vect_mag2();
                 } else {
-                    compute(x);
-                    total += binary_cross_entropy(this->pre_activations.back(), y);
+                    compute(batch_x);
+                    total += binary_cross_entropy(
+                        this->pre_activations.back(), batch_y
+                    );
                 }
             }
             return total/type(examples.size());
@@ -109,7 +118,9 @@ namespace neural {
             for (int epoch = 1; epoch <= epochs; epoch++) {
                 std::cout << "Computing epoch " << epoch << "..." << std::endl;
                 double t0 = time();
-                this->params -= compute_gradient(examples)*learning_rate;
+                compute_gradient(examples);
+                grad *= learning_rate;
+                this->params -= grad;
                 double t1 = time();
                 std::cout << "Epoch: " << epoch << " Loss: " << loss(examples)
                     << " in " << t1-t0 << "s" << std::endl;
@@ -147,7 +158,9 @@ namespace neural {
                 std::cout << "Trying lr = " << lr << "... " << std::flush;
                 this->params = saved_params;
                 for (int epoch = 0; epoch < probe_epochs; epoch++) {
-                    this->params -= compute_gradient(examples)*lr;
+                    compute_gradient(examples);
+                    grad *= lr;
+                    this->params -= grad;
                 }
                 type curr_loss = loss(examples);
                 std::cout << "Loss = " << curr_loss << std::endl;
@@ -163,73 +176,67 @@ namespace neural {
         }
 
         protected:
+        void ensure_buffers(int n) override {
+            StoredNetwork<type>::ensure_buffers(n);
+            int cap = this->_default_batch_size;
+            int W = std::max(layer_size(), out_size());
+            batch_x.ensure_capacity(cap, in_size());
+            batch_y.ensure_capacity(cap, out_size());
+            dE_dai.ensure_capacity(cap, W);
+            dE_dbi.ensure_capacity(cap, W);
+        }
+
         // HELPERS
-        pair<vmatrix_t<type>, vmatrix_t<type>> make_batch(
+        void make_batch(
             const vector<TrainingExample<type>>& examples, int start, int n
-        ) const {
-            vmatrix_t<type> x(n, in_size()), y(n, out_size());
+        ) {
+            batch_x.set_shape(n, in_size());
+            batch_y.set_shape(n, out_size());
             for (int i = 0; i < n; i++) {
                 const auto& ex = examples[start+i];
                 assert(ex.input.size() == in_size() && ex.output.size() == out_size());
-                for (int j = 0; j < in_size(); j++) {x.at(i, j) = ex.input[j];}
-                for (int j = 0; j < out_size(); j++) {y.at(i, j) = ex.output[j];}
+                #pragma omp simd
+                for (int j = 0; j < in_size(); j++) {batch_x.at(i, j) = ex.input[j];}
+                #pragma omp simd
+                for (int j = 0; j < out_size(); j++) {batch_y.at(i, j) = ex.output[j];}
             }
-            return {x, y};
         }
-        Parameters<type> compute_gradient(
-            const vector<TrainingExample<type>>& examples
-        ) {
-            Parameters<type> grad(in_size(), out_size(), n_layer(), layer_size());
-            Parameters<type> partial(in_size(), out_size(), n_layer(), layer_size());
+        void compute_gradient(const vector<TrainingExample<type>>& examples) {
+            grad.clear();
             int B = default_batch_size();
             for (int start = 0; start < int(examples.size()); start += B) {
                 int remaining = int(examples.size()) - start;
                 int n = remaining < B? remaining : B;
-                auto [x, y] = make_batch(examples, start, n);
-                compute_partial_gradient(partial, x, y);
+                make_batch(examples, start, n);
+                compute_partial_gradient();
                 grad += partial;
             }
-            return grad/type(examples.size());
+            grad /= type(examples.size());
         }
-        void compute_partial_gradient(
-            Parameters<type>& grad,
-            const vmatrix_t<type>& x,
-            const vmatrix_t<type>& y
-        ) {
-            compute(x);
+        void compute_partial_gradient() {
+            compute(batch_x);
+            int n = batch_x.nr();
+            dE_dai.set_shape(n, out_size());
             // dE_dai = dE_dan
-            vmatrix_t<type> dE_dai(
-                this->activations.back().nr(), this->activations.back().nc()
-            );
-            assign_sub(dE_dai, this->activations.back(), y);
+            assign_sub(dE_dai, this->activations.back(), batch_y);
             if (_loss == loss_t::MSE) {assign_mul(dE_dai, dE_dai, type(2));}
-            vmatrix_t<type> dE_dbi, dai_dbi;
             for (int i = n_layer()-1; i >= 0; i--) {
                 const auto& a_prev = (
                     i == 0? this->normalized_in : this->activations[i-1]
                 );
                 const vmatrix_t<type>& w = weights()[i];
                 const auto& z = this->pre_activations[i];
-                if (dE_dbi.nr() != z.nr() || dE_dbi.nc() != z.nc()) {
-                    dE_dbi = vmatrix_t<type>(z.nr(), z.nc());
-                }
-                if (dai_dbi.nr() != z.nr() || dai_dbi.nc() != z.nc()) {
-                    dai_dbi = vmatrix_t<type>(z.nr(), z.nc());
-                }
+                dE_dbi.set_shape(n, z.nc());
                 if (_loss == loss_t::CROSS_ENTROPY && i == n_layer()-1) {
-                    for (int k = 0; k < dai_dbi.raw_size(); k++) {
-                        dai_dbi.raw_at(k) = type(1);
-                    }
+                    assign_elems(dE_dbi, type(1));
                 } else {
-                    assign_activation_d(dai_dbi, z, i == n_layer()-1);
+                    assign_activation_d(dE_dbi, z, i == n_layer()-1);
                 }
-                assign_elem_prod(dE_dbi, dE_dai, dai_dbi);
-                assign_sum_rows(grad.biases[i], dE_dbi);
-                assign_mul(grad.weights[i], as_transpose(a_prev), dE_dbi);
+                apply_elem_prod(dE_dbi, dE_dai);
+                assign_sum_rows(partial.biases[i], dE_dbi);
+                assign_mul(partial.weights[i], as_transpose(a_prev), dE_dbi);
                 if (i > 0) {
-                    if (dE_dai.nr() != dE_dbi.nr() || dE_dai.nc() != w.nr()) {
-                        dE_dai = vmatrix_t<type>(dE_dbi.nr(), w.nr());
-                    }
+                    dE_dai.set_shape(n, w.nr());
                     assign_mul(dE_dai, dE_dbi, as_transpose(w));
                 }
             }

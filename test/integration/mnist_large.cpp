@@ -29,6 +29,7 @@ TestBatch tests({
         );
         
         TrainableNetwork<float> net(784, 10, 3, 64, activation_t::RELU, activation_t::SIGMOID);
+        net.set_default_batch_size(64);
         net.init_random();
 
         estimate_t<float> lr_estimate = {NAN, 0.05, 0.5};

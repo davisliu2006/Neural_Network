@@ -58,6 +58,19 @@ namespace neural {
         }
 
         int n_layer() const {return int(weights.size());}
+
+        void clear() {
+            for (int i = 0; i < n_layer(); i++) {
+                #pragma omp simd
+                for (int k = 0; k < weights[i].raw_size(); k++) {
+                    weights[i].raw_at(k) = type(0);
+                }
+                #pragma omp simd
+                for (int k = 0; k < biases[i].size(); k++) {
+                    biases[i][k] = type(0);
+                }
+            }
+        }
     };
 
     // equals

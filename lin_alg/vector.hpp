@@ -65,6 +65,11 @@ namespace lin_alg {
         #pragma omp simd
         for (int i = 0; i < dst.size(); i++) {dst[i] = src[i];}
     }
+    template <class type>
+    inline void assign_elems(vvect_t<type>& dst, type val) {
+        #pragma omp simd
+        for (int i = 0; i < dst.size(); i++) {dst[i] = val;}
+    }
 
     // vector negative
     template <class type>

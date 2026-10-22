@@ -32,6 +32,23 @@ namespace lin_alg {
         type& raw_at(int i) {return arr[i];}
         type raw_at(int i) const {return arr[i];}
 
+        /**
+         * Grows element storage if needed. Does not change logical shape.
+         */
+        void ensure_capacity(int nr, int nc) {
+            assert(nr >= 0 && nc >= 0);
+            size_t need = size_t(nr)*size_t(nc);
+            if (need > arr.size()) {arr.resize(need);}
+        }
+        /**
+         * Sets logical shape. Storage grows if needed.
+         */
+        void set_shape(int nr, int nc) {
+            ensure_capacity(nr, nc);
+            _nr = nr;
+            _nc = nc;
+        }
+
         double vect_mag2() const {
             double val = 0;
             #pragma omp simd reduction(+:val)
@@ -88,6 +105,11 @@ namespace lin_alg {
             #pragma omp simd
             for (int j = 0; j < dst.nc(); j++) {dst.at(i, j) = src.at(i, j);}
         }
+    }
+    template <class type>
+    inline void assign_elems(vmatrix_t<type>& dst, type val) {
+        #pragma omp simd
+        for (int i = 0; i < dst.raw_size(); i++) {dst.raw_at(i) = val;}
     }
 
     // matrix negative
