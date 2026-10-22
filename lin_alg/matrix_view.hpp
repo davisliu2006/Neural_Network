@@ -203,6 +203,7 @@ namespace lin_alg {
         assert(&dst != &a);
         assert(a.nc() == w.nc());
         assert(dst.nr() == a.nr() && dst.nc() == w.nr());
+        #pragma omp parallel for schedule(static) if(a.nr() >= 8)
         for (int i = 0; i < a.nr(); i++) {
             for (int j = 0; j < w.nr(); j++) {
                 type sum = 0;
@@ -234,8 +235,9 @@ namespace lin_alg {
         assert(dst.nr() == a_orig.nc() && dst.nc() == b.nc());
         #pragma omp simd
         for (int i = 0; i < dst.raw_size(); i++) {dst.raw_at(i) = type(0);}
-        for (int k = 0; k < b.nr(); k++) {
-            for (int i = 0; i < a_orig.nc(); i++) {
+        #pragma omp parallel for schedule(static) if(a_orig.nc() >= 8)
+        for (int i = 0; i < a_orig.nc(); i++) {
+            for (int k = 0; k < b.nr(); k++) {
                 #pragma omp simd
                 for (int j = 0; j < b.nc(); j++) {
                     dst.at(i, j) += a_orig.at(k, i)*b.at(k, j);

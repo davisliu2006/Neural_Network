@@ -286,7 +286,9 @@ namespace lin_alg {
         assert(dst.nr() == m1.nr() && dst.nc() == m2.nc());
         #pragma omp simd
         for (int i = 0; i < dst.raw_size(); i++) {dst.raw_at(i) = type(0);}
+        // parallel over i
         // iterating j on the innermost is better for cache locality
+        #pragma omp parallel for schedule(static) if(m1.nr() >= 8)
         for (int i = 0; i < m1.nr(); i++) {
             for (int k = 0; k < m1.nc(); k++) {
                 #pragma omp simd
