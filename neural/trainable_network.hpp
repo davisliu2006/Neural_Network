@@ -21,7 +21,7 @@ namespace neural {
         using StoredNetwork<type>::weights, StoredNetwork<type>::biases;
         using StoredNetwork<type>::get_weight, StoredNetwork<type>::get_bias,
             StoredNetwork<type>::set_weight, StoredNetwork<type>::set_bias;
-        using StoredNetwork<type>::activation, StoredNetwork<type>::apply_activation;
+        using StoredNetwork<type>::assign_activation;
         using StoredNetwork<type>::in_size, StoredNetwork<type>::out_size,
             StoredNetwork<type>::n_layer, StoredNetwork<type>::layer_size,
             StoredNetwork<type>::default_batch_size;
@@ -32,25 +32,19 @@ namespace neural {
         loss_t _loss;
 
         public:
-        vvect_t<type> activation_d(const vvect_t<type>& x, bool last = false) const {
-            vvect_t<type> val = x;
-            apply_activation_d(val, last);
-            return val;
-        }
-        vvect_t<type>& apply_activation_d(vvect_t<type>& x, bool last = false) const {
+        void assign_activation_d(
+            vvect_t<type>& dst, const vvect_t<type>& x, bool last = false
+        ) const {
+            assert(dst.size() == x.size());
             auto f = (last? _last_activation_d : _activation_d);
-            for (int i = 0; i < x.size(); i++) {x[i] = f(x[i]);}
-            return x;
+            for (int i = 0; i < dst.size(); i++) {dst[i] = f(x[i]);}
         }
-        vmatrix_t<type> activation_d(const vmatrix_t<type>& x, bool last = false) const {
-            vmatrix_t<type> val = x;
-            apply_activation_d(val, last);
-            return val;
-        }
-        vmatrix_t<type>& apply_activation_d(vmatrix_t<type>& x, bool last = false) const {
+        void assign_activation_d(
+            vmatrix_t<type>& dst, const vmatrix_t<type>& x, bool last = false
+        ) const {
+            assert(dst.nr() == x.nr() && dst.nc() == x.nc());
             auto f = (last? _last_activation_d : _activation_d);
-            for (int i = 0; i < x.raw_size(); i++) {x.raw_at(i) = f(x.raw_at(i));}
-            return x;
+            for (int i = 0; i < dst.raw_size(); i++) {dst.raw_at(i) = f(x.raw_at(i));}
         }
 
         TrainableNetwork(
@@ -204,31 +198,40 @@ namespace neural {
         ) {
             compute(x);
             // dE_dai = dE_dan
-            vmatrix_t<type> dE_dai = (this->activations.back() - y)*(
-                _loss == loss_t::MSE? type(2) : type(1)
+            vmatrix_t<type> dE_dai(
+                this->activations.back().nr(), this->activations.back().nc()
             );
+            assign_sub(dE_dai, this->activations.back(), y);
+            if (_loss == loss_t::MSE) {assign_mul(dE_dai, dE_dai, type(2));}
+            vmatrix_t<type> dE_dbi, dai_dbi;
             for (int i = n_layer()-1; i >= 0; i--) {
                 const auto& a_prev = (
                     i == 0? this->normalized_in : this->activations[i-1]
                 );
                 const vmatrix_t<type>& w = weights()[i];
-                vmatrix_t<type> dE_dbi = dE_dai;
-                vmatrix_t<type> dai_dbi(
-                    this->pre_activations[i].nr(), this->pre_activations[i].nc()
-                );
+                const auto& z = this->pre_activations[i];
+                if (dE_dbi.nr() != z.nr() || dE_dbi.nc() != z.nc()) {
+                    dE_dbi = vmatrix_t<type>(z.nr(), z.nc());
+                }
+                if (dai_dbi.nr() != z.nr() || dai_dbi.nc() != z.nc()) {
+                    dai_dbi = vmatrix_t<type>(z.nr(), z.nc());
+                }
                 if (_loss == loss_t::CROSS_ENTROPY && i == n_layer()-1) {
                     for (int k = 0; k < dai_dbi.raw_size(); k++) {
                         dai_dbi.raw_at(k) = type(1);
                     }
                 } else {
-                    dai_dbi = activation_d(
-                        this->pre_activations[i], i == n_layer()-1
-                    );
+                    assign_activation_d(dai_dbi, z, i == n_layer()-1);
                 }
-                apply_elem_prod(dE_dbi, dai_dbi);
-                grad.biases[i] = sum_rows(dE_dbi);
-                grad.weights[i] = as_transpose(a_prev) * dE_dbi;
-                if (i > 0) {dE_dai = dE_dbi * as_transpose(w);}
+                assign_elem_prod(dE_dbi, dE_dai, dai_dbi);
+                assign_sum_rows(grad.biases[i], dE_dbi);
+                assign_mul(grad.weights[i], as_transpose(a_prev), dE_dbi);
+                if (i > 0) {
+                    if (dE_dai.nr() != dE_dbi.nr() || dE_dai.nc() != w.nr()) {
+                        dE_dai = vmatrix_t<type>(dE_dbi.nr(), w.nr());
+                    }
+                    assign_mul(dE_dai, dE_dbi, as_transpose(w));
+                }
             }
         }
     };

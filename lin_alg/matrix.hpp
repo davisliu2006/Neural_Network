@@ -15,6 +15,7 @@ namespace lin_alg {
         std::vector<type> arr;
 
         public:
+        vmatrix_t(): _nr(0), _nc(0), arr() {}
         vmatrix_t(int nr, int nc): _nr(nr), _nc(nc), arr(nr*nc) {}
         vmatrix_t(int nr, int nc, const std::vector<type>& arr):
         _nr(nr), _nc(nc) {
@@ -79,7 +80,7 @@ namespace lin_alg {
         return true;
     }
 
-    // matrix in-place assign
+    // matrix assign
     template <class type>
     inline void assign(vmatrix_t<type>& dst, const vmatrix_t<type>& src) {
         assert(dst.nr() == src.nr() && dst.nc() == src.nc());
@@ -91,69 +92,102 @@ namespace lin_alg {
 
     // matrix negative
     template <class type>
-    inline vmatrix_t<type>& apply_neg(vmatrix_t<type>& m) {
+    inline void assign_neg(vmatrix_t<type>& dst, const vmatrix_t<type>& m) {
+        assert(dst.nr() == m.nr() && dst.nc() == m.nc());
         #pragma omp simd
-        for (int i = 0; i < m.raw_size(); i++) {m.raw_at(i) = -m.raw_at(i);}
+        for (int i = 0; i < dst.raw_size(); i++) {dst.raw_at(i) = -m.raw_at(i);}
+    }
+    template <class type>
+    inline vmatrix_t<type>& apply_neg(vmatrix_t<type>& m) {
+        assign_neg(m, m);
         return m;
     }
     template <class type>
     inline vmatrix_t<type> operator -(const vmatrix_t<type>& m) {
-        vmatrix_t<type> val = m;
-        apply_neg(val);
+        vmatrix_t<type> val(m.nr(), m.nc());
+        assign_neg(val, m);
         return val;
     }
 
     // matrix addition
     template <class type>
-    inline vmatrix_t<type>& operator +=(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+    inline void assign_add(
+        vmatrix_t<type>& dst, const vmatrix_t<type>& m1, const vmatrix_t<type>& m2
+    ) {
+        assert(dst.nr() == m1.nr() && dst.nc() == m1.nc());
         assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
         #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {m1.raw_at(i) += m2.raw_at(i);}
+        for (int i = 0; i < dst.raw_size(); i++) {
+            dst.raw_at(i) = m1.raw_at(i) + m2.raw_at(i);
+        }
+    }
+    template <class type>
+    inline vmatrix_t<type>& operator +=(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+        assign_add(m1, m1, m2);
         return m1;
     }
     template <class type>
     inline vmatrix_t<type> operator +(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
-        vmatrix_t<type> val = m1;
-        val += m2;
+        vmatrix_t<type> val(m1.nr(), m1.nc());
+        assign_add(val, m1, m2);
         return val;
     }
     template <class type>
-    inline vmatrix_t<type>& operator -=(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+    inline void assign_sub(
+        vmatrix_t<type>& dst, const vmatrix_t<type>& m1, const vmatrix_t<type>& m2
+    ) {
+        assert(dst.nr() == m1.nr() && dst.nc() == m1.nc());
         assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
         #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {m1.raw_at(i) -= m2.raw_at(i);}
+        for (int i = 0; i < dst.raw_size(); i++) {
+            dst.raw_at(i) = m1.raw_at(i) - m2.raw_at(i);
+        }
+    }
+    template <class type>
+    inline vmatrix_t<type>& operator -=(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+        assign_sub(m1, m1, m2);
         return m1;
     }
     template <class type>
     inline vmatrix_t<type> operator -(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
-        vmatrix_t<type> val = m1;
-        val -= m2;
+        vmatrix_t<type> val(m1.nr(), m1.nc());
+        assign_sub(val, m1, m2);
         return val;
     }
 
     // matrix scalar multiplication
     template <class type>
-    inline vmatrix_t<type>& operator *=(vmatrix_t<type>& m, type scale) {
+    inline void assign_mul(vmatrix_t<type>& dst, const vmatrix_t<type>& m, type scale) {
+        assert(dst.nr() == m.nr() && dst.nc() == m.nc());
         #pragma omp simd
-        for (int i = 0; i < m.raw_size(); i++) {m.raw_at(i) *= scale;}
+        for (int i = 0; i < dst.raw_size(); i++) {dst.raw_at(i) = m.raw_at(i) * scale;}
+    }
+    template <class type>
+    inline vmatrix_t<type>& operator *=(vmatrix_t<type>& m, type scale) {
+        assign_mul(m, m, scale);
         return m;
     }
     template <class type>
     inline vmatrix_t<type> operator *(const vmatrix_t<type>& m, type scale) {
-        vmatrix_t<type> val = m;
-        val *= scale;
+        vmatrix_t<type> val(m.nr(), m.nc());
+        assign_mul(val, m, scale);
         return val;
     }
     template <class type>
-    inline vmatrix_t<type>& operator /=(vmatrix_t<type>& m, type scale) {
+    inline void assign_div(vmatrix_t<type>& dst, const vmatrix_t<type>& m, type scale) {
+        assert(dst.nr() == m.nr() && dst.nc() == m.nc());
         #pragma omp simd
-        for (int i = 0; i < m.raw_size(); i++) {m.raw_at(i) /= scale;}
+        for (int i = 0; i < dst.raw_size(); i++) {dst.raw_at(i) = m.raw_at(i) / scale;}
+    }
+    template <class type>
+    inline vmatrix_t<type>& operator /=(vmatrix_t<type>& m, type scale) {
+        assign_div(m, m, scale);
         return m;
     }
     template <class type>
     inline vmatrix_t<type> operator /(const vmatrix_t<type>& m, type scale) {
-        vmatrix_t<type> val = m;
-        val /= scale;
+        vmatrix_t<type> val(m.nr(), m.nc());
+        assign_div(val, m, scale);
         return val;
     }
 
@@ -170,12 +204,18 @@ namespace lin_alg {
 
     // sum over rows
     template <class type>
-    inline vvect_t<type> sum_rows(const vmatrix_t<type>& m) {
-        vvect_t<type> v(m.nc());
+    inline void assign_sum_rows(vvect_t<type>& dst, const vmatrix_t<type>& m) {
+        assert(dst.size() == m.nc());
+        for (int j = 0; j < dst.size(); j++) {dst[j] = type(0);}
         for (int i = 0; i < m.nr(); i++) {
             #pragma omp simd
-            for (int j = 0; j < m.nc(); j++) {v[j] += m.at(i, j);}
+            for (int j = 0; j < m.nc(); j++) {dst[j] += m.at(i, j);}
         }
+    }
+    template <class type>
+    inline vvect_t<type> sum_rows(const vmatrix_t<type>& m) {
+        vvect_t<type> v(m.nc());
+        assign_sum_rows(v, m);
         return v;
     }
 
@@ -193,6 +233,7 @@ namespace lin_alg {
     inline void assign_mul(
         vvect_t<type>& dst, const vvect_t<type>& v, const vmatrix_t<type>& m
     ) {
+        assert(&dst != &v);
         assert(v.size() == m.nr());
         assert(dst.size() == m.nc());
         for (int j = 0; j < dst.size(); j++) {dst[j] = type(0);}
@@ -218,6 +259,7 @@ namespace lin_alg {
     inline void assign_mul(
         vmatrix_t<type>& dst, const vmatrix_t<type>& m1, const vmatrix_t<type>& m2
     ) {
+        assert(&dst != &m1);
         assert(m1.nc() == m2.nr());
         assert(dst.nr() == m1.nr() && dst.nc() == m2.nc());
         #pragma omp simd
@@ -245,16 +287,25 @@ namespace lin_alg {
 
     // element-wise multiplication
     template <class type>
-    inline vmatrix_t<type>& apply_elem_prod(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+    inline void assign_elem_prod(
+        vmatrix_t<type>& dst, const vmatrix_t<type>& m1, const vmatrix_t<type>& m2
+    ) {
+        assert(dst.nr() == m1.nr() && dst.nc() == m1.nc());
         assert(m1.nr() == m2.nr() && m1.nc() == m2.nc());
         #pragma omp simd
-        for (int i = 0; i < m1.raw_size(); i++) {m1.raw_at(i) *= m2.raw_at(i);}
+        for (int i = 0; i < dst.raw_size(); i++) {
+            dst.raw_at(i) = m1.raw_at(i) * m2.raw_at(i);
+        }
+    }
+    template <class type>
+    inline vmatrix_t<type>& apply_elem_prod(vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
+        assign_elem_prod(m1, m1, m2);
         return m1;
     }
     template <class type>
     inline vmatrix_t<type> elem_prod(const vmatrix_t<type>& m1, const vmatrix_t<type>& m2) {
-        vmatrix_t<type> val = m1;
-        apply_elem_prod(val, m2);
+        vmatrix_t<type> val(m1.nr(), m1.nc());
+        assign_elem_prod(val, m1, m2);
         return val;
     }
 

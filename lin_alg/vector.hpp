@@ -15,6 +15,7 @@ namespace lin_alg {
         std::vector<type> arr;
 
         public:
+        vvect_t(): arr() {}
         vvect_t(int n): arr(n) {}
         vvect_t(const std::vector<type>& arr): arr(arr) {}
         vvect_t(int n, type val): arr(n, val) {}
@@ -57,71 +58,106 @@ namespace lin_alg {
         return true;
     }
 
+    // vector assign
+    template <class type>
+    inline void assign(vvect_t<type>& dst, const vvect_t<type>& src) {
+        assert(dst.size() == src.size());
+        #pragma omp simd
+        for (int i = 0; i < dst.size(); i++) {dst[i] = src[i];}
+    }
+
     // vector negative
     template <class type>
-    inline vvect_t<type>& apply_neg(vvect_t<type>& v) {
+    inline void assign_neg(vvect_t<type>& dst, const vvect_t<type>& v) {
+        assert(dst.size() == v.size());
         #pragma omp simd
-        for (int i = 0; i < v.size(); i++) {v[i] = -v[i];}
+        for (int i = 0; i < dst.size(); i++) {dst[i] = -v[i];}
+    }
+    template <class type>
+    inline vvect_t<type>& apply_neg(vvect_t<type>& v) {
+        assign_neg(v, v);
         return v;
     }
     template <class type>
     inline vvect_t<type> operator -(const vvect_t<type>& v) {
-        vvect_t<type> val = v;
-        apply_neg(val);
+        vvect_t<type> val(v.size());
+        assign_neg(val, v);
         return val;
     }
 
     // vector addition
     template <class type>
-    inline vvect_t<type>& operator +=(vvect_t<type>& v1, const vvect_t<type>& v2) {
-        assert(v1.size() == v2.size());
+    inline void assign_add(
+        vvect_t<type>& dst, const vvect_t<type>& v1, const vvect_t<type>& v2
+    ) {
+        assert(dst.size() == v1.size() && v1.size() == v2.size());
         #pragma omp simd
-        for (int i = 0; i < v1.size(); i++) {v1[i] += v2[i];}
+        for (int i = 0; i < dst.size(); i++) {dst[i] = v1[i] + v2[i];}
+    }
+    template <class type>
+    inline vvect_t<type>& operator +=(vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assign_add(v1, v1, v2);
         return v1;
     }
     template <class type>
     inline vvect_t<type> operator +(const vvect_t<type>& v1, const vvect_t<type>& v2) {
-        vvect_t<type> val = v1;
-        val += v2;
+        vvect_t<type> val(v1.size());
+        assign_add(val, v1, v2);
         return val;
     }
     template <class type>
-    inline vvect_t<type>& operator -=(vvect_t<type>& v1, const vvect_t<type>& v2) {
-        assert(v1.size() == v2.size());
+    inline void assign_sub(
+        vvect_t<type>& dst, const vvect_t<type>& v1, const vvect_t<type>& v2
+    ) {
+        assert(dst.size() == v1.size() && v1.size() == v2.size());
         #pragma omp simd
-        for (int i = 0; i < v1.size(); i++) {v1[i] -= v2[i];}
+        for (int i = 0; i < dst.size(); i++) {dst[i] = v1[i] - v2[i];}
+    }
+    template <class type>
+    inline vvect_t<type>& operator -=(vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assign_sub(v1, v1, v2);
         return v1;
     }
     template <class type>
     inline vvect_t<type> operator -(const vvect_t<type>& v1, const vvect_t<type>& v2) {
-        vvect_t<type> val = v1;
-        val -= v2;
+        vvect_t<type> val(v1.size());
+        assign_sub(val, v1, v2);
         return val;
     }
 
     // vector scalar multiplication
     template <class type>
-    inline vvect_t<type>& operator *=(vvect_t<type>& v, type scale) {
+    inline void assign_mul(vvect_t<type>& dst, const vvect_t<type>& v, type scale) {
+        assert(dst.size() == v.size());
         #pragma omp simd
-        for (int i = 0; i < v.size(); i++) {v[i] *= scale;}
+        for (int i = 0; i < dst.size(); i++) {dst[i] = v[i] * scale;}
+    }
+    template <class type>
+    inline vvect_t<type>& operator *=(vvect_t<type>& v, type scale) {
+        assign_mul(v, v, scale);
         return v;
     }
     template <class type>
     inline vvect_t<type> operator *(const vvect_t<type>& v, type scale) {
-        vvect_t<type> val = v;
-        val *= scale;
+        vvect_t<type> val(v.size());
+        assign_mul(val, v, scale);
         return val;
     }
     template <class type>
-    inline vvect_t<type>& operator /=(vvect_t<type>& v, type scale) {
+    inline void assign_div(vvect_t<type>& dst, const vvect_t<type>& v, type scale) {
+        assert(dst.size() == v.size());
         #pragma omp simd
-        for (int i = 0; i < v.size(); i++) {v[i] /= scale;}
+        for (int i = 0; i < dst.size(); i++) {dst[i] = v[i] / scale;}
+    }
+    template <class type>
+    inline vvect_t<type>& operator /=(vvect_t<type>& v, type scale) {
+        assign_div(v, v, scale);
         return v;
     }
     template <class type>
     inline vvect_t<type> operator /(const vvect_t<type>& v, type scale) {
-        vvect_t<type> val = v;
-        val /= scale;
+        vvect_t<type> val(v.size());
+        assign_div(val, v, scale);
         return val;
     }
 
@@ -137,16 +173,22 @@ namespace lin_alg {
 
     // element-wise multiplication
     template <class type>
-    inline vvect_t<type>& apply_elem_prod(vvect_t<type>& v1, const vvect_t<type>& v2) {
-        assert(v1.size() == v2.size());
+    inline void assign_elem_prod(
+        vvect_t<type>& dst, const vvect_t<type>& v1, const vvect_t<type>& v2
+    ) {
+        assert(dst.size() == v1.size() && v1.size() == v2.size());
         #pragma omp simd
-        for (int i = 0; i < v1.size(); i++) {v1[i] *= v2[i];}
+        for (int i = 0; i < dst.size(); i++) {dst[i] = v1[i] * v2[i];}
+    }
+    template <class type>
+    inline vvect_t<type>& apply_elem_prod(vvect_t<type>& v1, const vvect_t<type>& v2) {
+        assign_elem_prod(v1, v1, v2);
         return v1;
     }
     template <class type>
     inline vvect_t<type> elem_prod(const vvect_t<type>& v1, const vvect_t<type>& v2) {
-        vvect_t<type> val = v1;
-        apply_elem_prod(val, v2);
+        vvect_t<type> val(v1.size());
+        assign_elem_prod(val, v1, v2);
         return val;
     }
 }

@@ -75,6 +75,16 @@ TestBatch tests({
         assert(v == vvect_t<int>({-30, 30, -45}));
         assert((v1 *= M2) == v);
     }},
+    {"matrix assign and assign_mul", []() {
+        vmatrix_t<int> dst(3, 3);
+        assign(dst, M1);
+        assert(dst == M1);
+        assign_mul(dst, M1, M2);
+        assert(dst == M1*M2);
+        vvect_t<int> vdst(3);
+        assign_mul(vdst, V1, M2);
+        assert(vdst == V1*M2);
+    }},
     {"matrix multiplication non-square", []() {
         vmatrix_t<int> m = M3*M4;
         assert(m == vmatrix_t<int>(2, 2, {

@@ -43,25 +43,19 @@ namespace neural {
             params.set_bias(layer, v);
         }
 
-        vvect_t<type> activation(const vvect_t<type>& x, bool last = false) const {
-            vvect_t<type> val = x;
-            apply_activation(val, last);
-            return val;
-        }
-        vvect_t<type>& apply_activation(vvect_t<type>& x, bool last = false) const {
+        void assign_activation(
+            vvect_t<type>& dst, const vvect_t<type>& x, bool last = false
+        ) const {
+            assert(dst.size() == x.size());
             auto f = (last? _last_activation : _activation);
-            for (int i = 0; i < x.size(); i++) {x[i] = f(x[i]);}
-            return x;
+            for (int i = 0; i < dst.size(); i++) {dst[i] = f(x[i]);}
         }
-        vmatrix_t<type> activation(const vmatrix_t<type>& x, bool last = false) const {
-            vmatrix_t<type> val = x;
-            apply_activation(val, last);
-            return val;
-        }
-        vmatrix_t<type>& apply_activation(vmatrix_t<type>& x, bool last = false) const {
+        void assign_activation(
+            vmatrix_t<type>& dst, const vmatrix_t<type>& x, bool last = false
+        ) const {
+            assert(dst.nr() == x.nr() && dst.nc() == x.nc());
             auto f = (last? _last_activation : _activation);
-            for (int i = 0; i < x.raw_size(); i++) {x.raw_at(i) = f(x.raw_at(i));}
-            return x;
+            for (int i = 0; i < dst.raw_size(); i++) {dst.raw_at(i) = f(x.raw_at(i));}
         }
 
         Network(
@@ -90,11 +84,12 @@ namespace neural {
 
         virtual vmatrix_t<type> compute(const vmatrix_t<type>& in) {
             assert(in.nr() > 0 && in.nc() == in_size());
-            vmatrix_t<type> out = normalizer.normalize(in);
+            vmatrix_t<type> out(in.nr(), in.nc());
+            normalizer.assign_normalize(out, in);
             for (int i = 0; i < n_layer(); i++) {
                 out = out * weights()[i];
                 apply_add_row(out, biases()[i]);
-                apply_activation(out, i == n_layer()-1);
+                assign_activation(out, out, i == n_layer()-1);
             }
             return out;
         }
@@ -105,7 +100,7 @@ namespace neural {
         using Network<type>::weights, Network<type>::biases;
         using Network<type>::get_weight, Network<type>::get_bias,
             Network<type>::set_weight, Network<type>::set_bias;
-        using Network<type>::activation, Network<type>::apply_activation;
+        using Network<type>::assign_activation;
         using Network<type>::in_size, Network<type>::out_size,
             Network<type>::n_layer, Network<type>::layer_size;
 
@@ -142,20 +137,34 @@ namespace neural {
         void set_default_batch_size(int default_batch_size) {
             assert(default_batch_size > 0);
             _default_batch_size = default_batch_size;
+            ensure_buffers(default_batch_size);
         }
 
         vmatrix_t<type> compute(const vmatrix_t<type>& in) override {
             assert(in.nr() > 0 && in.nc() == in_size());
-            normalized_in = this->normalizer.normalize(in);
-            pre_activations[0] = normalized_in * weights()[0];
+            ensure_buffers(in.nr());
+            this->normalizer.assign_normalize(normalized_in, in);
+            assign_mul(pre_activations[0], normalized_in, weights()[0]);
             apply_add_row(pre_activations[0], biases()[0]);
-            activations[0] = activation(pre_activations[0]);
+            assign_activation(activations[0], pre_activations[0]);
             for (int i = 1; i < n_layer(); i++) {
-                pre_activations[i] = activations[i-1] * weights()[i];
+                assign_mul(pre_activations[i], activations[i-1], weights()[i]);
                 apply_add_row(pre_activations[i], biases()[i]);
-                activations[i] = activation(pre_activations[i], i == n_layer()-1);
+                assign_activation(activations[i], pre_activations[i], i == n_layer()-1);
             }
             return activations.back();
+        }
+
+        protected:
+        void ensure_buffers(int n) {
+            if (normalized_in.nr() == n) {return;}
+            normalized_in = vmatrix_t<type>(n, in_size());
+            for (int i = 0; i < n_layer()-1; i++) {
+                pre_activations[i] = vmatrix_t<type>(n, layer_size());
+                activations[i] = vmatrix_t<type>(n, layer_size());
+            }
+            pre_activations.back() = vmatrix_t<type>(n, out_size());
+            activations.back() = vmatrix_t<type>(n, out_size());
         }
     };
 }
